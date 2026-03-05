@@ -1,0 +1,524 @@
+---
+title: Installation
+description: Complete setup guide for Artifact Miner including prerequisites, installation, environment configuration, and database migrations
+---
+
+## Prerequisites
+
+Before installing Artifact Miner, ensure you have the following tools installed:
+
+### Required
+
+<AccordionGroup>
+  <Accordion title="Python 3.11 or higher">
+    Artifact Miner requires Python 3.11+ for modern type hints and performance improvements.
+    
+    **Verify your Python version:**
+    ```bash
+    python3 --version
+    ```
+    
+    Expected output: `Python 3.11.0` or higher
+    
+    **Install Python 3.11+ on Ubuntu/Debian:**
+    ```bash
+    sudo apt update
+    sudo apt install python3.11 python3.11-venv
+    ```
+    
+    **Install Python 3.11+ on macOS (Homebrew):**
+    ```bash
+    brew install python@3.11
+    ```
+  </Accordion>
+  
+  <Accordion title="uv (Universal Python Package Manager)">
+    `uv` is an extremely fast Python package installer and resolver. Artifact Miner uses `uv` for dependency management.
+    
+    **Install uv:**
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+    
+    **Verify installation:**
+    ```bash
+    uv --version
+    ```
+    
+    <Tip>
+      `uv` is 10-100x faster than pip and handles lock files automatically. Learn more at [https://github.com/astral-sh/uv](https://github.com/astral-sh/uv)
+    </Tip>
+  </Accordion>
+  
+  <Accordion title="Git">
+    Required for cloning the repository and analyzing Git-based projects.
+    
+    **Verify Git installation:**
+    ```bash
+    git --version
+    ```
+    
+    **Install Git:**
+    - **Ubuntu/Debian**: `sudo apt install git`
+    - **macOS**: `brew install git` or use Xcode Command Line Tools
+    - **Windows**: Download from [git-scm.com](https://git-scm.com/)
+  </Accordion>
+</AccordionGroup>
+
+### Optional
+
+<AccordionGroup>
+  <Accordion title="Bun (for OpenTUI React client)">
+    Only needed if you want to run the experimental React-based OpenTUI client.
+    
+    **Install Bun:**
+    ```bash
+    curl -fsSL https://bun.sh/install | bash
+    ```
+    
+    **Usage:**
+    ```bash
+    cd opentui-react-exp
+    bun install
+    bun run src/index.tsx
+    ```
+  </Accordion>
+  
+  <Accordion title="OpenAI API Key">
+    Required only if you want cloud-based LLM summaries via OpenAI.
+    
+    1. Get an API key from [platform.openai.com](https://platform.openai.com/api-keys)
+    2. Add to your `.env` file:
+       ```bash
+       OPENAI_API_KEY=sk-proj-...
+       ```
+  </Accordion>
+  
+  <Accordion title="Ollama (for local LLM)">
+    Required only if you want local LLM-powered summaries without cloud dependencies.
+    
+    **Install Ollama:**
+    ```bash
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
+    
+    **Pull a model:**
+    ```bash
+    ollama pull llama2
+    ```
+    
+    **Configure in .env:**
+    ```bash
+    OLLAMA_MODEL=llama2
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd artifactminer
+    ```
+    
+    <Note>
+      Replace `<repository-url>` with the actual repository URL provided by your team or organization.
+    </Note>
+  </Step>
+  
+  <Step title="Install dependencies with uv">
+    ```bash
+    uv sync
+    ```
+    
+    This command:
+    - Creates a virtual environment if one doesn't exist
+    - Installs all dependencies from `pyproject.toml`:
+      - FastAPI + Uvicorn (API server)
+      - SQLAlchemy + Alembic (database)
+      - Textual (TUI framework)
+      - GitPython (Git analysis)
+      - OpenAI SDK (optional LLM)
+      - Ollama SDK (optional local LLM)
+      - And more...
+    
+    **Verify installation:**
+    ```bash
+    uv run python -c "import artifactminer; print('Success!')"
+    ```
+  </Step>
+  
+  <Step title="Configure environment variables">
+    Copy the example environment file:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    **Default .env contents:**
+    ```bash
+    # Base URL for the FastAPI server used by the TUI.
+    # Change this if your API runs on a different host/port.
+    API_BASE_URL=http://127.0.0.1:8000
+    
+    # OpenTUI React exp API client configuration.
+    # ARTIFACT_MINER_API_URL maps to the ApiClient baseUrl.
+    ARTIFACT_MINER_API_URL=http://127.0.0.1:8000
+    # Request timeout in milliseconds (default: 30000).
+    ARTIFACT_MINER_TIMEOUT=30000
+    ```
+    
+    <Tip>
+      The default configuration works for local development. Only modify if you're deploying to a remote server.
+    </Tip>
+  </Step>
+  
+  <Step title="Initialize the database">
+    Run Alembic migrations to create the database schema:
+    
+    ```bash
+    uv run alembic upgrade head
+    ```
+    
+    This command:
+    - Creates `artifactminer.db` (SQLite database)
+    - Applies all migrations from `alembic/versions/`
+    - Sets up tables for:
+      - Artifacts, Questions, Consents
+      - RepoStats, UserRepoStats
+      - ProjectSkills, UserProjectSkills
+      - ResumeItems, ProjectEvidence
+      - UploadedZips, RepresentationPreferences
+    
+    **Verify database creation:**
+    ```bash
+    ls -lh artifactminer.db
+    ```
+    
+    You should see a file around 20-50 KB after initial migrations.
+  </Step>
+  
+  <Step title="Verify installation">
+    Test that all entry points are working:
+    
+    <CodeGroup>
+    ```bash API Server
+    uv run api
+    # Visit http://127.0.0.1:8000/docs
+    ```
+    
+    ```bash Textual TUI
+    uv run artifactminer-tui
+    # Should launch interactive terminal interface
+    ```
+    
+    ```bash CLI
+    uv run artifactminer --help
+    # Should display usage information
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Environment Setup
+
+### Development Dependencies
+
+For contributors or those running tests, install dev dependencies:
+
+```bash
+uv sync --group dev
+```
+
+This installs:
+- `pytest` + `pytest-asyncio` (testing)
+- `ruff` (linting)
+- `mypy` (type checking)
+
+### Running Tests
+
+```bash
+uv run pytest
+```
+
+Test coverage includes:
+- API endpoints (`tests/api/`)
+- Database models (`tests/db/`)
+- Repository intelligence (`tests/Repository-Intelligence-tests/`)
+- Skills extraction (`tests/test_skill_extraction.py`)
+- Evidence orchestration (`tests/evidence/`)
+- TUI screens (`tests/tui/`)
+- CLI flows (`tests/test_cli.py`)
+
+### Project Structure
+
+```text
+src/artifactminer/
+  api/                    # FastAPI app + routers
+    app.py                # Main application
+    main.py               # Entry point (uvicorn server)
+    routers/              # Endpoint modules
+  db/                     # SQLAlchemy models, session, seeders
+    models.py             # Database schema
+    database.py           # Session management
+  RepositoryIntelligence/ # Repo and user contribution analytics
+  skills/                 # Skill extraction, deep analysis, signals
+    deep_analysis.py      # DeepRepoAnalyzer
+    skill_extractor.py    # Skill pattern matching
+    signals/              # Git, language, infra signals
+  evidence/               # Evidence models and extractors
+    orchestrator.py       # Evidence coordination
+    models.py             # Evidence schemas
+  directorycrawler/       # ZIP/directory crawl utilities
+  tui/                    # Textual app + screens
+    app.py                # TUI entry point
+    screens/              # Consent, upload, resume screens
+  cli/                    # Interactive/non-interactive CLI pipeline
+opentui-react-exp/        # Experimental React/OpenTUI client
+tests/                    # Comprehensive test suite
+alembic/                  # Database migrations
+  versions/               # Migration scripts
+```
+
+## Database Migrations (Alembic)
+
+<Warning>
+  **IMPORTANT**: Always apply migrations instead of manually recreating `artifactminer.db`. Manual recreation will lose data and skip version tracking.
+</Warning>
+
+### Keep Database Up to Date
+
+After pulling updates from Git:
+
+```bash
+uv run alembic upgrade head
+```
+
+This applies all pending migrations to bring your schema to the latest version.
+
+### Check Current Migration Status
+
+```bash
+uv run alembic current
+```
+
+Example output:
+```
+0fb88330df12 (head)
+```
+
+### View Migration History
+
+```bash
+uv run alembic history
+```
+
+Example output:
+```
+0fb88330df12 -> (head), merge portfolio_id migration
+31ea0eb0fa88 -> 0fb88330df12, merge all heads
+a5f7c2e91d4b -> 31ea0eb0fa88, add portfolio_id to uploaded_zips
+85f98443ddf4 -> 31ea0eb0fa88, add health_score to repo_stats
+...
+```
+
+### Creating a New Migration
+
+<Steps>
+  <Step title="Update SQLAlchemy models">
+    Modify `src/artifactminer/db/models.py` with your schema changes.
+    
+    Example:
+    ```python
+    class RepoStat(Base):
+        __tablename__ = "repo_stats"
+        # ... existing fields ...
+        new_field = Column(String, nullable=True)  # Add this
+    ```
+  </Step>
+  
+  <Step title="Generate migration">
+    ```bash
+    uv run alembic revision --autogenerate -m "Add new_field to repo_stats"
+    ```
+    
+    Alembic will:
+    - Compare your models to the current database schema
+    - Generate a migration script in `alembic/versions/`
+    - Name it with a hash + your message
+  </Step>
+  
+  <Step title="Review generated migration">
+    Open the new file in `alembic/versions/` and verify:
+    - `upgrade()` function adds expected changes
+    - `downgrade()` function reverses those changes
+    
+    <Warning>
+      Autogenerate is smart but not perfect. Always review before applying!
+    </Warning>
+  </Step>
+  
+  <Step title="Apply the migration">
+    ```bash
+    uv run alembic upgrade head
+    ```
+  </Step>
+  
+  <Step title="Commit model + migration together">
+    ```bash
+    git add src/artifactminer/db/models.py alembic/versions/<new_file>.py
+    git commit -m "Add new_field to repo_stats"
+    ```
+  </Step>
+</Steps>
+
+### Downgrade a Migration
+
+If you need to undo the last migration:
+
+```bash
+uv run alembic downgrade -1
+```
+
+Or revert to a specific version:
+
+```bash
+uv run alembic downgrade <revision_id>
+```
+
+### Seed Data
+
+On API startup, baseline question records are automatically seeded when the `questions` table is empty. This happens in `src/artifactminer/db/seeders.py`.
+
+## Running Artifact Miner
+
+### Option 1: FastAPI Backend
+
+Start the development server with auto-reload:
+
+```bash
+uv run api
+```
+
+**What this does** (from `src/artifactminer/api/main.py`):
+```python
+def main():
+    uvicorn.run(
+        "artifactminer.api.app:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
+    )
+```
+
+- **Host**: `127.0.0.1` (localhost only)
+- **Port**: `8000`
+- **Reload**: Auto-restarts on code changes
+- **API Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Option 2: Textual TUI
+
+Launch the interactive terminal UI:
+
+```bash
+uv run artifactminer-tui
+```
+
+This starts the full-screen Textual application with:
+- Welcome screen
+- Consent flow
+- User configuration
+- ZIP upload
+- Directory selection
+- Analysis progress
+- Resume/timeline views
+
+### Option 3: CLI
+
+Run in interactive mode:
+
+```bash
+uv run artifactminer
+```
+
+Or non-interactive mode:
+
+```bash
+uv run artifactminer \
+  -i /path/to/projects.zip \
+  -o /path/to/report.txt \
+  -c no_llm \
+  -u student@university.edu
+```
+
+**Available flags**:
+- `-i, --input`: Path to ZIP file containing projects
+- `-o, --output`: Output file path (`.txt` for text, `.json` for JSON)
+- `-c, --consent`: Consent level (`full`, `no_llm`, `none`)
+- `-u, --user-email`: User email for tracking
+
+## Troubleshooting
+
+### Database Locked Error
+
+**Problem**: `sqlite3.OperationalError: database is locked`
+
+**Solution**: Ensure only one instance of the API or TUI is running. SQLite doesn't handle concurrent writes well.
+
+### Migration Conflicts
+
+**Problem**: `FAILED: Multiple head revisions are present`
+
+**Solution**: 
+```bash
+uv run alembic merge heads -m "Merge conflicting migrations"
+uv run alembic upgrade head
+```
+
+### Missing Dependencies
+
+**Problem**: `ModuleNotFoundError: No module named 'artifactminer'`
+
+**Solution**:
+```bash
+uv sync
+# Or if that fails:
+rm -rf .venv
+uv sync
+```
+
+### Port Already in Use
+
+**Problem**: `OSError: [Errno 48] Address already in use`
+
+**Solution**:
+```bash
+# Find process using port 8000
+lsof -i :8000
+# Kill it
+kill -9 <PID>
+# Or use a different port
+uvicorn artifactminer.api.app:app --port 8001
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Analyze your first project in 5 minutes
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints
+  </Card>
+  
+  <Card title="CLI Usage" icon="terminal" href="/interfaces/cli">
+    Advanced CLI workflows and automation
+  </Card>
+  
+  <Card title="Contributing" icon="code-pull-request" href="https://github.com/COSC-499-W2025/capstone-project-team-1/blob/main/CONTRIBUTING.md">
+    Set up your development environment
+  </Card>
+</CardGroup>

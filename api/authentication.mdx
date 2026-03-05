@@ -1,0 +1,120 @@
+---
+title: 'Authentication'
+description: 'Authentication and session management for Artifact Miner API'
+---
+
+## Authentication Model
+
+The Artifact Miner API currently uses **session-based authentication** rather than token-based authentication. User identity is established through configuration questions rather than traditional login.
+
+## How It Works
+
+### 1. User Configuration
+
+When you first use Artifact Miner, you answer configuration questions including your email address:
+
+```bash POST /answers
+curl -X POST http://127.0.0.1:8000/answers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "answers": {
+      "email": "user@example.com",
+      "end_goal": "Create a professional portfolio"
+    }
+  }'
+```
+
+### 2. Identity Association
+
+Your email address is stored in the database and used to:
+
+- Filter git commits to your contributions
+- Associate generated content with your account
+- Scope portfolio and resume data to your identity
+
+### 3. No API Keys Required
+
+There is **no need for API keys or bearer tokens**. All requests are processed within your local session.
+
+## Session Scope
+
+The API maintains session state through:
+
+- **User answers** - Configuration stored in `UserAnswer` table
+- **Consent level** - Privacy preferences in `Consent` table
+- **Portfolio ID** - UUID linking uploaded ZIPs to portfolios
+
+## Multi-User Considerations
+
+The current implementation is designed for **single-user local usage**. If you need to support multiple users:
+
+- Each user should run their own instance of the API
+- Or implement additional session management on top of the base API
+
+## Data Privacy
+
+Since authentication is session-based and local:
+
+- No credentials are sent over the network
+- All data remains on your machine
+- You control consent for LLM usage via the `/consent` endpoint
+
+## Future Authentication
+
+If deploying Artifact Miner in a multi-user environment, you may want to add:
+
+- JWT token-based authentication
+- OAuth integration
+- API key management
+- User registration and login flows
+
+These features are not included in the core API but can be added as extensions.
+
+## Related Endpoints
+
+- [GET /questions](/api/overview#questions) - Retrieve configuration questions
+- [POST /answers](/api/overview#answers) - Submit user configuration
+- [GET /consent](/api/consent) - Check consent level
+- [PUT /consent](/api/consent) - Update consent level
+
+## Example: Complete Setup Flow
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Step 1: Get configuration questions
+questions = requests.get(f'{BASE_URL}/questions').json()
+print(f"Found {len(questions)} questions")
+
+# Step 2: Submit answers
+answers = {
+    'email': 'developer@example.com',
+    'end_goal': 'Build my portfolio'
+}
+response = requests.post(
+    f'{BASE_URL}/answers',
+    json={'answers': answers}
+)
+print(f"Submitted {len(response.json())} answers")
+
+# Step 3: Set consent level
+consent = requests.put(
+    f'{BASE_URL}/consent',
+    json={'consent_level': 'local'}
+)
+print(f"Consent level: {consent.json()['consent_level']}")
+
+# You're now ready to use the API!
+```
+
+## Security Notes
+
+<Warning>
+  The current API is designed for **local development only**. Do not expose it to the internet without adding proper authentication and security measures.
+</Warning>
+
+- The API listens on `127.0.0.1` (localhost) by default
+- No authentication means anyone with access to your machine can use the API
+- For production deployments, implement proper authentication and HTTPS

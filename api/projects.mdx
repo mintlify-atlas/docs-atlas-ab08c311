@@ -1,0 +1,472 @@
+---
+title: 'Projects'
+description: 'CRUD operations for managing projects and metadata'
+---
+
+## Overview
+
+The projects API provides full CRUD operations for managing analyzed repositories, including metadata, thumbnails, roles, and evidence.
+
+## List Projects
+
+Get all projects, excluding soft-deleted ones.
+
+```bash GET /projects
+curl http://127.0.0.1:8000/projects?limit=10&offset=0
+```
+
+**Query Parameters:**
+
+<ParamField query="limit" type="integer" optional>
+  Max results to return (min: 1)
+</ParamField>
+
+<ParamField query="offset" type="integer" optional default="0">
+  Number of results to skip (min: 0)
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "project_name": "my-app",
+    "project_path": "/path/to/my-app",
+    "languages": ["Python", "JavaScript"],
+    "frameworks": ["FastAPI", "React"],
+    "first_commit": "2023-01-15T10:00:00",
+    "last_commit": "2024-03-05T14:30:00",
+    "is_collaborative": true,
+    "thumbnail_url": "/uploads/thumbnails/abc123.png"
+  }
+]
+```
+
+<ResponseField name="id" type="integer">
+  Unique project identifier (RepoStat primary key)
+</ResponseField>
+
+<ResponseField name="project_name" type="string">
+  Display name of the project
+</ResponseField>
+
+<ResponseField name="project_path" type="string">
+  File system path to the project repository
+</ResponseField>
+
+<ResponseField name="languages" type="array" optional>
+  Programming languages detected in the project
+</ResponseField>
+
+<ResponseField name="frameworks" type="array" optional>
+  Frameworks detected in the project
+</ResponseField>
+
+<ResponseField name="first_commit" type="datetime" optional>
+  Timestamp of the first commit in the repository
+</ResponseField>
+
+<ResponseField name="last_commit" type="datetime" optional>
+  Timestamp of the most recent commit
+</ResponseField>
+
+<ResponseField name="is_collaborative" type="boolean">
+  Whether the project has multiple contributors
+</ResponseField>
+
+<ResponseField name="thumbnail_url" type="string" optional>
+  URL to the project thumbnail image
+</ResponseField>
+
+## Get Project Details
+
+Retrieve a single project with related skills, resume items, and evidence.
+
+```bash GET /projects/{project_id}
+curl http://127.0.0.1:8000/projects/1
+```
+
+**Path Parameters:**
+
+<ParamField path="project_id" type="integer" required>
+  Project ID to retrieve
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "project_name": "my-app",
+  "project_path": "/path/to/my-app",
+  "languages": ["Python", "JavaScript"],
+  "frameworks": ["FastAPI", "React"],
+  "first_commit": "2023-01-15T10:00:00",
+  "last_commit": "2024-03-05T14:30:00",
+  "is_collaborative": true,
+  "total_commits": 342,
+  "primary_language": "Python",
+  "ranking_score": 85.5,
+  "health_score": 92.0,
+  "role": "Lead Developer",
+  "thumbnail_url": "/uploads/thumbnails/abc123.png",
+  "skills": [
+    {
+      "skill_name": "Python",
+      "category": "Programming Languages",
+      "proficiency": 0.9
+    }
+  ],
+  "resume_items": [
+    {
+      "id": 1,
+      "title": "Built REST API",
+      "content": "Developed FastAPI backend...",
+      "category": "Backend Development"
+    }
+  ],
+  "evidence": [
+    {
+      "id": 1,
+      "type": "metric",
+      "content": "Improved test coverage to 95%",
+      "source": "pytest",
+      "date": "2024-03-01",
+      "project_id": 1
+    }
+  ]
+}
+```
+
+<ResponseField name="skills" type="array">
+  Skills demonstrated in this project
+  
+  <Expandable title="ProjectSkillItem properties">
+    <ResponseField name="skill_name" type="string">
+      Name of the skill
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" optional>
+      Skill category (e.g., "Programming Languages")
+    </ResponseField>
+    
+    <ResponseField name="proficiency" type="number" optional>
+      Proficiency level (0.0-1.0)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="resume_items" type="array">
+  Resume items generated for this project
+  
+  <Expandable title="ProjectResumeItem properties">
+    <ResponseField name="id" type="integer">
+      Resume item ID
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Resume item title
+    </ResponseField>
+    
+    <ResponseField name="content" type="string">
+      Resume item content/description
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" optional>
+      Resume item category
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="evidence" type="array">
+  Evidence of success for this project
+  
+  <Expandable title="EvidenceResponse properties">
+    <ResponseField name="id" type="integer">
+      Evidence item ID
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Evidence type: `metric`, `feedback`, `evaluation`, `award`, `custom`, `testing`, `documentation`, `code_quality`, `test_coverage`
+    </ResponseField>
+    
+    <ResponseField name="content" type="string">
+      Evidence content/description
+    </ResponseField>
+    
+    <ResponseField name="source" type="string" optional>
+      Source of the evidence
+    </ResponseField>
+    
+    <ResponseField name="date" type="date" optional>
+      Date of the evidence
+    </ResponseField>
+    
+    <ResponseField name="project_id" type="integer">
+      Associated project ID
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Set Project Thumbnail
+
+Upload or set a thumbnail image for a project.
+
+```bash POST /projects/{project_id}/thumbnail
+curl -X POST http://127.0.0.1:8000/projects/1/thumbnail \
+  -F "file=@screenshot.png"
+```
+
+**Path Parameters:**
+
+<ParamField path="project_id" type="integer" required>
+  Project ID to update
+</ParamField>
+
+**Request Body (Form Data):**
+
+<ParamField body="file" type="file" optional>
+  Image file to upload (PNG or JPG, max 5 MB). Use this OR `thumbnail_url`, not both
+</ParamField>
+
+<ParamField body="thumbnail_url" type="string" optional>
+  External URL to use as thumbnail. Use this OR `file`, not both
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "project_id": 1,
+  "project_name": "my-app",
+  "thumbnail_url": "/uploads/thumbnails/abc123def456.png"
+}
+```
+
+**Errors:**
+
+- `422` - Must provide exactly one of `file` or `thumbnail_url`
+- `422` - Only PNG and JPG images are allowed
+- `413` - Thumbnail exceeds 5 MB size limit
+- `404` - Project not found
+
+## Set Project Role
+
+Define your role in a project.
+
+```bash PUT /projects/{project_id}/role
+curl -X PUT http://127.0.0.1:8000/projects/1/role \
+  -H "Content-Type: application/json" \
+  -d '{"role": "Lead Developer"}'
+```
+
+**Path Parameters:**
+
+<ParamField path="project_id" type="integer" required>
+  Project ID to update
+</ParamField>
+
+**Request Body:**
+
+<ParamField body="role" type="string" required>
+  Your role in this project (e.g., "Lead Developer", "Contributor"). Max 120 characters
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "project_id": 1,
+  "project_name": "my-app",
+  "role": "Lead Developer"
+}
+```
+
+## Create Evidence
+
+Add evidence of success to a project.
+
+```bash POST /projects/{project_id}/evidence
+curl -X POST http://127.0.0.1:8000/projects/1/evidence \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "metric",
+    "content": "Reduced API response time by 40%",
+    "source": "Performance testing",
+    "date": "2024-03-01"
+  }'
+```
+
+**Path Parameters:**
+
+<ParamField path="project_id" type="integer" required>
+  Project ID to add evidence to
+</ParamField>
+
+**Request Body:**
+
+<ParamField body="type" type="string" required>
+  Evidence type: `metric`, `feedback`, `evaluation`, `award`, `custom`, `testing`, `documentation`, `code_quality`, `test_coverage`
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  Description of the evidence (min 1 character)
+</ParamField>
+
+<ParamField body="source" type="string" optional>
+  Source of the evidence
+</ParamField>
+
+<ParamField body="date" type="date" optional>
+  Date of the evidence (YYYY-MM-DD)
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "type": "metric",
+  "content": "Reduced API response time by 40%",
+  "source": "Performance testing",
+  "date": "2024-03-01",
+  "project_id": 1
+}
+```
+
+## List Evidence
+
+Get all evidence for a project with optional type filter.
+
+```bash GET /projects/{project_id}/evidence?type=metric
+curl http://127.0.0.1:8000/projects/1/evidence?type=metric
+```
+
+**Query Parameters:**
+
+<ParamField query="type" type="string" optional>
+  Filter by evidence type
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "type": "metric",
+    "content": "Reduced API response time by 40%",
+    "source": "Performance testing",
+    "date": "2024-03-01",
+    "project_id": 1
+  }
+]
+```
+
+## Delete Evidence
+
+Remove an evidence item from a project.
+
+```bash DELETE /projects/{project_id}/evidence/{evidence_id}
+curl -X DELETE http://127.0.0.1:8000/projects/1/evidence/5
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "deleted_id": 5
+}
+```
+
+## Delete Project
+
+Soft-delete a project (sets `deleted_at` timestamp).
+
+```bash DELETE /projects/{project_id}
+curl -X DELETE http://127.0.0.1:8000/projects/1
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Project 'my-app' deleted successfully",
+  "deleted_id": 1
+}
+```
+
+<Note>
+  Soft deletion preserves the project in the database but excludes it from queries. Related skills, resume items, and evidence are preserved.
+</Note>
+
+## Get Project Timeline
+
+Retrieve project activity windows with optional filtering.
+
+```bash GET /projects/timeline?active_only=true
+curl "http://127.0.0.1:8000/projects/timeline?active_only=true"
+```
+
+**Query Parameters:**
+
+<ParamField query="start_date" type="date" optional>
+  Filter projects starting after this date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="end_date" type="date" optional>
+  Filter projects starting before this date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="active_only" type="boolean" optional>
+  Only show projects active in the last 6 months
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "project_name": "my-app",
+    "first_commit": "2023-01-15T10:00:00",
+    "last_commit": "2024-03-05T14:30:00",
+    "duration_days": 415,
+    "was_active": true
+  }
+]
+```
+
+## Get Project Ranking
+
+Rank projects by user contribution percentage.
+
+```bash GET /projects/ranking
+curl "http://127.0.0.1:8000/projects/ranking?projects_dir=/path/to/projects&user_email=dev@example.com"
+```
+
+**Query Parameters:**
+
+<ParamField query="projects_dir" type="string" required>
+  Directory containing projects to rank
+</ParamField>
+
+<ParamField query="user_email" type="string" required>
+  Email to filter user contributions
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "name": "my-app",
+    "score": 85.5,
+    "total_commits": 342,
+    "user_commits": 292
+  }
+]
+```

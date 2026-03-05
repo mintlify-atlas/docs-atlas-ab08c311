@@ -1,0 +1,246 @@
+---
+title: 'Skills'
+description: 'Retrieve skills data and chronological skill progression'
+---
+
+## Overview
+
+The skills API provides read-only access to extracted skills from analyzed projects, including chronological skill progression and project counts.
+
+## List All Skills
+
+Get all skills with optional filtering and project counts.
+
+```bash GET /skills
+curl "http://127.0.0.1:8000/skills?category=Programming%20Languages&include_project_count=true"
+```
+
+**Query Parameters:**
+
+<ParamField query="category" type="string" optional>
+  Filter skills by category (e.g., "Programming Languages", "Frameworks")
+</ParamField>
+
+<ParamField query="include_project_count" type="boolean" optional default="false">
+  Include count of projects using each skill
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Python",
+    "category": "Programming Languages",
+    "project_count": 5
+  },
+  {
+    "id": 2,
+    "name": "FastAPI",
+    "category": "Frameworks",
+    "project_count": 3
+  }
+]
+```
+
+<ResponseField name="id" type="integer">
+  Unique skill identifier
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Skill name (e.g., "Python", "React")
+</ResponseField>
+
+<ResponseField name="category" type="string" optional>
+  Skill category (e.g., "Programming Languages", "Frameworks")
+</ResponseField>
+
+<ResponseField name="project_count" type="integer" optional>
+  Number of projects using this skill (only included if `include_project_count=true`)
+</ResponseField>
+
+### Skill Categories
+
+Common skill categories include:
+
+- **Programming Languages** - Python, JavaScript, Java, etc.
+- **Frameworks** - React, FastAPI, Django, etc.
+- **Tools** - Git, Docker, Kubernetes, etc.
+- **Databases** - PostgreSQL, MongoDB, Redis, etc.
+- **Cloud Platforms** - AWS, GCP, Azure, etc.
+
+<Note>
+  Skills are automatically extracted during repository analysis. The categorization is determined by the deep analysis engine.
+</Note>
+
+## Get Skills Chronology
+
+Retrieve skills ordered by when they were first demonstrated in projects.
+
+```bash GET /skills/chronology
+curl http://127.0.0.1:8000/skills/chronology
+```
+
+**Response:**
+
+```json
+[
+  {
+    "date": "2022-06-15T10:00:00",
+    "skill": "Python",
+    "project": "data-pipeline",
+    "proficiency": 0.85,
+    "category": "Programming Languages"
+  },
+  {
+    "date": "2023-01-20T14:30:00",
+    "skill": "FastAPI",
+    "project": "api-server",
+    "proficiency": 0.75,
+    "category": "Frameworks"
+  },
+  {
+    "date": "2023-08-10T09:15:00",
+    "skill": "React",
+    "project": "dashboard",
+    "proficiency": 0.7,
+    "category": "Frameworks"
+  }
+]
+```
+
+<ResponseField name="date" type="datetime" optional>
+  Date when the skill was first demonstrated (from project's first commit)
+</ResponseField>
+
+<ResponseField name="skill" type="string">
+  Name of the skill
+</ResponseField>
+
+<ResponseField name="project" type="string">
+  Project where the skill was first demonstrated
+</ResponseField>
+
+<ResponseField name="proficiency" type="number" optional>
+  Proficiency level (0.0-1.0 scale)
+</ResponseField>
+
+<ResponseField name="category" type="string" optional>
+  Skill category (e.g., "Programming Languages")
+</ResponseField>
+
+### Understanding Chronology
+
+The chronology endpoint shows your skill progression over time:
+
+- Skills are sorted by the `date` field (oldest first)
+- The `date` corresponds to the project's first commit
+- This helps visualize when you started using different technologies
+- Useful for creating timeline-based resumes and portfolios
+
+<Note>
+  If a skill appears in multiple projects, only the earliest occurrence is shown in the chronology.
+</Note>
+
+## Proficiency Levels
+
+Proficiency is calculated based on:
+
+- **Frequency of use** - How often the skill appears in commits
+- **Code complexity** - Sophistication of usage patterns
+- **Project scope** - Size and complexity of projects using the skill
+
+### Proficiency Scale
+
+- **0.0 - 0.3**: Beginner (basic usage)
+- **0.3 - 0.6**: Intermediate (regular usage)
+- **0.6 - 0.8**: Advanced (complex usage)
+- **0.8 - 1.0**: Expert (mastery demonstrated)
+
+## Example: Building a Skills Timeline
+
+```python
+import requests
+from datetime import datetime
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Get chronological skills
+chronology = requests.get(f'{BASE_URL}/skills/chronology').json()
+
+# Group by year
+by_year = {}
+for item in chronology:
+    if item['date']:
+        year = datetime.fromisoformat(item['date']).year
+        if year not in by_year:
+            by_year[year] = []
+        by_year[year].append(item['skill'])
+
+# Print timeline
+for year in sorted(by_year.keys()):
+    skills = ', '.join(by_year[year])
+    print(f"{year}: {skills}")
+```
+
+**Output:**
+```
+2022: Python, SQL, Docker
+2023: FastAPI, React, TypeScript
+2024: Kubernetes, AWS
+```
+
+## Example: Filter by Category
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Get programming languages only
+languages = requests.get(
+    f'{BASE_URL}/skills',
+    params={
+        'category': 'Programming Languages',
+        'include_project_count': True
+    }
+).json()
+
+# Sort by project count
+languages.sort(key=lambda x: x['project_count'], reverse=True)
+
+print("Top languages:")
+for lang in languages[:5]:
+    print(f"  {lang['name']}: {lang['project_count']} projects")
+```
+
+## Data Source
+
+Skills are extracted from two sources:
+
+1. **Project-level skills** (`ProjectSkill` table)
+   - Extracted from entire repository
+   - Includes all contributors
+
+2. **User-specific skills** (`UserProjectSkill` table)
+   - Extracted from user's contributions only
+   - Based on commit analysis
+
+The API combines both sources and deduplicates by skill name.
+
+## Related Endpoints
+
+- [GET /projects/{id}](/api/projects#get-project-details) - Get skills for a specific project
+- [POST /analyze/{zip_id}](/api/analysis#analyze-zip) - Extract skills from repositories
+- [POST /portfolio/generate](/api/portfolio#generate-portfolio) - Include skills in portfolio
+
+## Performance Notes
+
+- Skills are indexed by name and category for fast queries
+- Project counts use efficient bulk queries to avoid N+1 problems
+- Chronology results are sorted in-memory (acceptable for typical dataset sizes)
+
+<Warning>
+  Skills are only available after running analysis on repositories. Make sure to call `POST /analyze/{zip_id}` first.
+</Warning>

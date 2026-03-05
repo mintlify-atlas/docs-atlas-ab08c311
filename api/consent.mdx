@@ -1,0 +1,144 @@
+---
+title: 'Consent Management'
+description: 'Manage user consent for LLM usage and data processing'
+---
+
+## Overview
+
+The consent API manages user privacy preferences for AI/LLM usage during analysis. Artifact Miner respects your data privacy by letting you choose how your code is processed.
+
+## Consent Levels
+
+<ParamField path="consent_level" type="string" required>
+  User's consent level for data processing
+  
+  - `none` - No processing (static analysis only)
+  - `local` - Static analysis only, no LLM
+  - `local-llm` - Use local LLM models
+  - `cloud` - Allow cloud LLM API calls
+</ParamField>
+
+## Get Consent Status
+
+Retrieve the current consent level.
+
+```bash GET /consent
+curl http://127.0.0.1:8000/consent
+```
+
+**Response:**
+
+```json
+{
+  "consent_level": "local",
+  "accepted_at": "2024-03-05T10:30:00"
+}
+```
+
+<ResponseField name="consent_level" type="string">
+  Current consent level: `none`, `local`, `local-llm`, or `cloud`
+</ResponseField>
+
+<ResponseField name="accepted_at" type="datetime" optional>
+  Timestamp when consent was accepted. `null` if consent_level is `none`
+</ResponseField>
+
+## Update Consent Level
+
+Change the consent level for data processing.
+
+```bash PUT /consent
+curl -X PUT http://127.0.0.1:8000/consent \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consent_level": "local-llm"
+  }'
+```
+
+**Request Body:**
+
+<ParamField body="consent_level" type="string" required>
+  New consent level. Must be one of: `none`, `local`, `local-llm`, `cloud`
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "consent_level": "local-llm",
+  "accepted_at": "2024-03-05T12:45:00"
+}
+```
+
+<ResponseField name="consent_level" type="string">
+  Updated consent level
+</ResponseField>
+
+<ResponseField name="accepted_at" type="datetime" optional>
+  Timestamp when consent was accepted. Set to current time for non-`none` levels
+</ResponseField>
+
+## How Consent Affects Analysis
+
+### `none` or `local`
+- Uses deterministic static analysis only
+- No LLM calls are made
+- Skills extracted from file analysis and git metadata
+- Template-based summaries for projects
+
+### `local-llm`
+- Uses local LLM models for enhanced analysis
+- No data sent to external services
+- Better quality summaries and insights
+- Requires local LLM setup
+
+### `cloud`
+- Enables cloud-based LLM API calls
+- Best quality analysis and summaries
+- Code snippets may be sent to LLM providers
+- Follow your organization's data policies
+
+## Privacy Considerations
+
+<Warning>
+  If you work with proprietary or sensitive code, use `local` or `local-llm` consent levels to avoid sending data to external services.
+</Warning>
+
+- The consent level is stored locally in your database
+- You can change it at any time
+- Existing analysis results are not affected by consent changes
+- Re-run analysis to apply new consent settings
+
+## Example Workflow
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Check current consent level
+consent = requests.get(f'{BASE_URL}/consent').json()
+print(f"Current consent: {consent['consent_level']}")
+
+# Update to allow local LLM usage
+if consent['consent_level'] == 'none':
+    response = requests.put(
+        f'{BASE_URL}/consent',
+        json={'consent_level': 'local-llm'}
+    )
+    print(f"Updated to: {response.json()['consent_level']}")
+```
+
+## Database Schema
+
+Consent is stored in a singleton row (id=1) in the `consent` table:
+
+```sql
+CREATE TABLE consent (
+    id INTEGER PRIMARY KEY,
+    consent_level VARCHAR NOT NULL,
+    accepted_at TIMESTAMP
+);
+```
+
+If no consent record exists, it defaults to `none` when first accessed.

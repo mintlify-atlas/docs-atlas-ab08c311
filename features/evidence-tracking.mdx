@@ -1,0 +1,687 @@
+---
+title: Evidence Tracking
+description: Extract, persist, and manage project evidence from git stats, repository quality, insights, and infrastructure signals
+---
+
+## Overview
+
+Evidence Tracking collects concrete proof of developer skills and practices from repository analysis. The system extracts evidence from multiple sources—git contribution metrics, repository quality signals, derived insights, and infrastructure configurations—then persists them with intelligent deduplication and cap limits.
+
+## Evidence Model
+
+### Database Schema
+
+```python
+class ProjectEvidence(Base):
+    __tablename__ = "project_evidence"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    repo_stat_id = Column(
+        Integer, 
+        ForeignKey("repo_stats.id", ondelete="CASCADE"), 
+        nullable=False
+    )
+    type = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    source = Column(String, nullable=True)
+    date = Column(Date, nullable=True)
+    created_at = Column(
+        DateTime, 
+        default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    
+    # Relationships
+    repo_stat = relationship("RepoStat", back_populates="evidence")
+```
+
+### Evidence Types
+
+```python
+EvidenceType = Literal[
+    "metric",          # Quantitative measurements (commit counts, percentages)
+    "feedback",        # User-provided feedback or testimonials
+    "evaluation",      # Derived insights and assessments
+    "award",           # Recognition or achievements
+    "custom",          # User-defined evidence
+    "testing",         # Testing practices and coverage
+    "documentation",   # Documentation quality signals
+    "code_quality",    # Code quality tooling and practices
+    "test_coverage",   # Test coverage metrics
+]
+```
+
+### Data Model
+
+```python
+@dataclass
+class EvidenceItem:
+    """Structured evidence item ready for ProjectEvidence persistence."""
+    
+    type: str
+    content: str
+    source: str | None = None
+    date: date | None = None
+```
+
+## Evidence Extractors
+
+### 1. Git Stats Bridge
+
+Convert git contribution metrics to evidence:
+
+```python
+def git_stats_to_evidence(git_stats: GitStatsResult) -> List[EvidenceItem]:
+    """Convert git contribution metrics to evidence items."""
+    if not git_stats:
+        return []
+    
+    evidence_date = coerce_date(git_stats.last_commit_date)
+    items: List[EvidenceItem] = []
+    
+    _RULES = [
+        (git_stats.contribution_percent > 0,
+         f"Contributed {git_stats.contribution_percent:.1f}% of repository commits", 
+         "git_stats"),
+        (git_stats.commit_frequency > 0,
+         f"Commit frequency: {git_stats.commit_frequency:.2f} commits/week", 
+         "git_stats"),
+        (git_stats.commit_count_window > 0,
+         f"{git_stats.commit_count_window} commits in last 90 days", 
+         "git_stats"),
+        (git_stats.has_branches and git_stats.branch_count > 1,
+         f"Uses branching workflow ({git_stats.branch_count} branches)", 
+         "git_patterns"),
+        (git_stats.has_tags,
+         "Uses git tags for releases", 
+         "git_patterns"),
+        (git_stats.merge_commits > 0,
+         f"Performed {git_stats.merge_commits} merge commits", 
+         "git_patterns"),
+    ]
+    
+    for condition, content, source in _RULES:
+        if condition:
+            items.append(
+                EvidenceItem(
+                    type="metric", 
+                    content=content, 
+                    source=source, 
+                    date=evidence_date
+                )
+            )
+    
+    return items
+```
+
+**Example Output:**
+```python
+[
+    EvidenceItem(
+        type="metric",
+        content="Contributed 67.3% of repository commits",
+        source="git_stats",
+        date=date(2024, 12, 20)
+    ),
+    EvidenceItem(
+        type="metric",
+        content="Commit frequency: 8.50 commits/week",
+        source="git_stats",
+        date=date(2024, 12, 20)
+    ),
+    EvidenceItem(
+        type="metric",
+        content="Uses branching workflow (5 branches)",
+        source="git_patterns",
+        date=date(2024, 12, 20)
+    )
+]
+```
+
+### 2. Repository Quality Bridge
+
+Extract evidence from repository quality signals:
+
+```python
+def repo_quality_to_evidence(
+    quality: RepoQualityResult,
+    *,
+    evidence_date: date | None = None,
+) -> List[EvidenceItem]:
+    """Convert repository quality signals to evidence items."""
+    items: List[EvidenceItem] = []
+    
+    if not quality:
+        return items
+    
+    # Positive: testing
+    if quality.has_tests and quality.test_file_count > 0:
+        frameworks = ", ".join(quality.test_frameworks) if quality.test_frameworks else "tests"
+        items.append(EvidenceItem(
+            type="testing",
+            content=f"Has {quality.test_file_count} test files ({frameworks})",
+            source="repo_quality_signals",
+            date=evidence_date,
+        ))
+    
+    # Positive: documentation
+    docs_parts = []
+    if quality.has_readme:
+        docs_parts.append("README")
+    if quality.has_changelog:
+        docs_parts.append("CHANGELOG")
+    if quality.has_contributing:
+        docs_parts.append("CONTRIBUTING")
+    if quality.has_docs_dir:
+        docs_parts.append("docs/")
+    
+    if docs_parts:
+        items.append(EvidenceItem(
+            type="documentation",
+            content=f"Has documentation: {', '.join(docs_parts)}",
+            source="repo_quality_signals",
+            date=evidence_date,
+        ))
+    
+    # Positive: quality tooling
+    quality_parts = []
+    if quality.has_lint_config:
+        quality_parts.append("lint")
+    if quality.has_precommit:
+        quality_parts.append("pre-commit")
+    if quality.has_type_check:
+        quality_parts.append("type checking")
+    
+    if quality_parts:
+        content = f"Has quality tooling: {', '.join(quality_parts)}"
+        if quality.quality_tools:
+            content += f" ({', '.join(quality.quality_tools)})"
+        items.append(EvidenceItem(
+            type="code_quality", 
+            content=content,
+            source="repo_quality_signals", 
+            date=evidence_date,
+        ))
+    
+    # Negative signals
+    if not quality.has_tests:
+        items.append(EvidenceItem(
+            type="test_coverage",
+            content="No test files detected in repository",
+            source="repo_quality_signals",
+            date=evidence_date,
+        ))
+    
+    if not docs_parts:
+        items.append(EvidenceItem(
+            type="documentation",
+            content="Documentation is missing.",
+            source="docs_signals",
+            date=evidence_date,
+        ))
+    
+    return items
+```
+
+**Example Output:**
+```python
+[
+    EvidenceItem(
+        type="testing",
+        content="Has 42 test files (pytest, unittest)",
+        source="repo_quality_signals",
+        date=date(2024, 12, 20)
+    ),
+    EvidenceItem(
+        type="documentation",
+        content="Has documentation: README, CHANGELOG, docs/",
+        source="repo_quality_signals",
+        date=date(2024, 12, 20)
+    ),
+    EvidenceItem(
+        type="code_quality",
+        content="Has quality tooling: lint, pre-commit, type checking (pylint, mypy)",
+        source="repo_quality_signals",
+        date=date(2024, 12, 20)
+    )
+]
+```
+
+### 3. Insight Bridge
+
+Convert DeepRepoAnalyzer insights to evidence:
+
+```python
+def insights_to_evidence(
+    insights: Iterable[Insight],
+    *,
+    repo_last_commit: date | datetime | None = None,
+) -> list[EvidenceItem]:
+    """Map insights to evidence rows used by the ProjectEvidence table."""
+    converted: list[EvidenceItem] = []
+    evidence_date = coerce_date(repo_last_commit)
+    
+    for insight in insights:
+        title = (insight.title or "").strip()
+        why = (insight.why_it_matters or "").strip()
+        if not title and not why:
+            continue
+        
+        if title and why:
+            content = f"{title}: {why}"
+        else:
+            content = title or why
+        
+        # Concatenate evidence snippets as source
+        source_chunks = [
+            item.strip() 
+            for item in (insight.evidence or []) 
+            if item and item.strip()
+        ]
+        source = "; ".join(source_chunks[:5]) if source_chunks else None
+        
+        converted.append(
+            EvidenceItem(
+                type="evaluation",
+                content=content,
+                source=source,
+                date=evidence_date,
+            )
+        )
+    
+    return converted
+```
+
+**Example Output:**
+```python
+[
+    EvidenceItem(
+        type="evaluation",
+        content="API design and architecture: Clean API design with validation and DI shows architectural maturity.",
+        source="@app.post(/analyze); Pydantic models; Depends(get_db)",
+        date=date(2024, 12, 20)
+    ),
+    EvidenceItem(
+        type="evaluation",
+        content="Robustness and error handling: Custom exceptions, managed resources, and logging reduce brittleness.",
+        source="class AnalysisError(Exception); with open(...) as f; logger.error(...)",
+        date=date(2024, 12, 20)
+    )
+]
+```
+
+### 4. Infrastructure Signals Bridge
+
+Extract DevOps evidence from infrastructure configurations:
+
+```python
+def infra_signals_to_evidence(
+    infra: InfraSignalsResult,
+    *,
+    evidence_date: date | None = None,
+) -> List[EvidenceItem]:
+    """Convert infrastructure signals to evidence items."""
+    items: List[EvidenceItem] = []
+    
+    if not infra:
+        return items
+    
+    if infra.ci_cd_tools:
+        items.append(EvidenceItem(
+            type="metric",
+            content=f"Uses CI/CD: {', '.join(infra.ci_cd_tools)}",
+            source="infra_signals",
+            date=evidence_date,
+        ))
+    
+    if infra.docker_tools:
+        items.append(EvidenceItem(
+            type="metric",
+            content=f"Uses containerization: {', '.join(infra.docker_tools)}",
+            source="infra_signals",
+            date=evidence_date,
+        ))
+    
+    if infra.env_build_tools:
+        items.append(EvidenceItem(
+            type="metric",
+            content=f"Uses build tools: {', '.join(infra.env_build_tools)}",
+            source="infra_signals",
+            date=evidence_date,
+        ))
+    
+    return items
+```
+
+## Evidence Orchestration
+
+### Persistence with Deduplication
+
+From `src/artifactminer/evidence/orchestrator.py:27-82`:
+
+```python
+def persist_generated_evidence(
+    db: Session,
+    repo_stat_id: int,
+    evidence_items: Iterable[EvidenceItem],
+    *,
+    max_items: int = MAX_AUTOGENERATED_EVIDENCE_PER_RUN,
+    commit: bool = True,
+) -> list[ProjectEvidence]:
+    """Persist generated evidence with dedupe and per-run insert cap."""
+    if not isinstance(db, Session):
+        raise ValueError("db must be a SQLAlchemy Session")
+    if max_items < 0:
+        raise ValueError("max_items must be >= 0")
+    if max_items == 0:
+        return []
+    
+    # Verify repo_stat exists
+    if not db.query(RepoStat).filter(RepoStat.id == repo_stat_id).first():
+        raise ValueError(f"RepoStat {repo_stat_id} does not exist")
+    
+    # Load existing evidence for deduplication
+    existing_rows = (
+        db.query(ProjectEvidence.type, ProjectEvidence.content)
+        .filter(ProjectEvidence.repo_stat_id == repo_stat_id)
+        .all()
+    )
+    seen_keys = {
+        _evidence_key(item_type, content) 
+        for item_type, content in existing_rows
+    }
+    
+    created: list[ProjectEvidence] = []
+    for item in evidence_items:
+        if len(created) >= max_items:
+            break
+        
+        item_type = (item.type or "").strip()
+        content = (item.content or "").strip()
+        if not item_type or not content:
+            continue
+        
+        # Deduplicate by normalized (type, content) pair
+        dedupe_key = _evidence_key(item_type, content)
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+        
+        source = (item.source or "").strip() or None
+        row = ProjectEvidence(
+            repo_stat_id=repo_stat_id,
+            type=item_type,
+            content=content,
+            source=source,
+            date=item.date,
+        )
+        db.add(row)
+        created.append(row)
+    
+    if commit:
+        db.commit()
+    
+    return created
+```
+
+### Deduplication Logic
+
+```python
+def _normalize_token(value: str) -> str:
+    """Normalize for case/whitespace-insensitive dedupe comparisons."""
+    return " ".join(value.strip().split()).lower()
+
+def _evidence_key(item_type: str, content: str) -> tuple[str, str]:
+    return (_normalize_token(item_type), _normalize_token(content))
+```
+
+**Examples:**
+```python
+# These are considered duplicates:
+_evidence_key("metric", "Contributed 67.3% of commits")
+_evidence_key("Metric", "  Contributed   67.3%   of commits  ")
+# Both produce: ('metric', 'contributed 67.3% of commits')
+
+# These are NOT duplicates:
+_evidence_key("metric", "Contributed 67.3% of commits")
+_evidence_key("metric", "Contributed 67.4% of commits")
+```
+
+### Per-Run Cap Limit
+
+```python
+MAX_AUTOGENERATED_EVIDENCE_PER_RUN = 15
+```
+
+Each analysis run generates at most 15 new evidence items per project. This prevents flooding the database while allowing incremental evidence accumulation across multiple analysis runs.
+
+### Insight Persistence Helper
+
+```python
+def persist_insights_as_project_evidence(
+    db: Session,
+    repo_stat_id: int,
+    insights: list[Insight],
+    *,
+    repo_last_commit: date | datetime | None = None,
+    max_items: int = MAX_AUTOGENERATED_EVIDENCE_PER_RUN,
+    commit: bool = True,
+) -> list[ProjectEvidence]:
+    """Convert insights to evidence rows and persist with dedupe/cap rules."""
+    evidence_items = insights_to_evidence(
+        insights,
+        repo_last_commit=repo_last_commit,
+    )
+    return persist_generated_evidence(
+        db=db,
+        repo_stat_id=repo_stat_id,
+        evidence_items=evidence_items,
+        max_items=max_items,
+        commit=commit,
+    )
+```
+
+## Evidence in Analysis Pipeline
+
+From `src/artifactminer/api/analyze.py:453-469`:
+
+```python
+# Persist insights as evidence
+persist_insights_as_project_evidence(
+    db=db,
+    repo_stat_id=repo_stat.id,
+    insights=deep_result.insights,
+    repo_last_commit=repo_last_commit,
+    commit=False,
+)
+
+evidence_date = repo_last_commit.date() if repo_last_commit else None
+
+# Persist additional signal evidence
+for signal, converter in [
+    (deep_result.git_stats, lambda s: git_stats_to_evidence(s)),
+    (deep_result.infra_signals, lambda s: infra_signals_to_evidence(s, evidence_date=evidence_date)),
+    (deep_result.repo_quality, lambda s: repo_quality_to_evidence(s, evidence_date=evidence_date)),
+]:
+    if signal:
+        _persist_optional_evidence(
+            db=db, 
+            repo_stat_id=repo_stat.id, 
+            evidence_items=converter(signal)
+        )
+```
+
+## CRUD Operations
+
+### Create Evidence
+
+```bash
+POST /projects/{project_id}/evidence
+Content-Type: application/json
+
+{
+  "type": "award",
+  "content": "Won Best Innovation Award at company hackathon",
+  "source": "Internal recognition program",
+  "date": "2024-11-15"
+}
+```
+
+**Response:**
+```json
+{
+  "id": 123,
+  "type": "award",
+  "content": "Won Best Innovation Award at company hackathon",
+  "source": "Internal recognition program",
+  "date": "2024-11-15",
+  "project_id": 1
+}
+```
+
+### Read Evidence
+
+**Get all evidence for a project:**
+```bash
+GET /projects/{project_id}
+```
+
+**Response includes evidence array:**
+```json
+{
+  "id": 1,
+  "project_name": "api-platform",
+  "evidence": [
+    {
+      "id": 1,
+      "type": "evaluation",
+      "content": "API design and architecture: Clean API design with validation and DI shows architectural maturity.",
+      "source": "@app.post; Pydantic; Depends",
+      "date": "2024-12-20",
+      "project_id": 1
+    },
+    {
+      "id": 2,
+      "type": "metric",
+      "content": "Contributed 67.3% of repository commits",
+      "source": "git_stats",
+      "date": "2024-12-20",
+      "project_id": 1
+    }
+  ]
+}
+```
+
+### Update Evidence
+
+```bash
+PUT /projects/{project_id}/evidence/{evidence_id}
+Content-Type: application/json
+
+{
+  "type": "award",
+  "content": "Won Best Innovation Award at 2024 company hackathon (updated)",
+  "source": "Internal recognition program - Engineering Excellence",
+  "date": "2024-11-15"
+}
+```
+
+### Delete Evidence
+
+```bash
+DELETE /projects/{project_id}/evidence/{evidence_id}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "deleted_id": 123
+}
+```
+
+## Evidence in Portfolio Display
+
+Evidence is included in portfolio project items:
+
+```bash
+GET /portfolio/{portfolio_id}
+```
+
+**Response:**
+```json
+{
+  "projects": [
+    {
+      "id": 1,
+      "project_name": "artifact-miner",
+      "evidence": [
+        {
+          "id": 1,
+          "type": "evaluation",
+          "content": "API design and architecture: Clean API design with validation and DI shows architectural maturity.",
+          "source": "FastAPI decorators; Pydantic models",
+          "date": "2024-12-20"
+        },
+        {
+          "id": 2,
+          "type": "metric",
+          "content": "Contributed 67.3% of repository commits",
+          "source": "git_stats",
+          "date": "2024-12-20"
+        },
+        {
+          "id": 3,
+          "type": "testing",
+          "content": "Has 42 test files (pytest, unittest)",
+          "source": "repo_quality_signals",
+          "date": "2024-12-20"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Error Handling
+
+### Invalid Repo Stat
+
+```python
+raise ValueError(f"RepoStat {repo_stat_id} does not exist")
+```
+
+### Invalid Parameters
+
+```python
+if max_items < 0:
+    raise ValueError("max_items must be >= 0")
+
+if not isinstance(db, Session):
+    raise ValueError("db must be a SQLAlchemy Session")
+```
+
+### Empty Content Skipping
+
+```python
+item_type = (item.type or "").strip()
+content = (item.content or "").strip()
+if not item_type or not content:
+    continue  # Skip invalid items silently
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Skill Extraction" icon="brain" href="/features/skill-extraction">
+    Learn how skills are detected and provide evidence
+  </Card>
+  <Card title="Portfolio Analysis" icon="folder-tree" href="/features/portfolio-analysis">
+    See how evidence is displayed in portfolio views
+  </Card>
+  <Card title="Resume Generation" icon="file-lines" href="/features/resume-generation">
+    Understand how evidence becomes resume items
+  </Card>
+  <Card title="Projects API" icon="code" href="/api/projects">
+    Complete API documentation for evidence endpoints
+  </Card>
+</CardGroup>

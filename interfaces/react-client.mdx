@@ -1,0 +1,466 @@
+---
+title: React Client (Experimental)
+description: Modern web-based interface built with OpenTUI React for analyzing projects in the browser
+---
+
+<Warning>
+  The React client is **experimental** and under active development. Features may change, and some functionality may be incomplete or unstable.
+</Warning>
+
+## Overview
+
+The Artifact Miner React client provides a modern web-based interface built with [OpenTUI](https://opentui.dev/) - a framework for building terminal-style UIs in React. Unlike the Textual TUI which runs in your terminal, this client runs in a web browser with a terminal-inspired aesthetic.
+
+## Features
+
+- **Landing page** with animated typewriter effect and call-to-action
+- **Consent screen** for LLM processing preferences
+- **File upload** with ZIP scanning and directory selection
+- **Project list** showing discovered repositories
+- **Analysis progress** with real-time updates
+- **Resume preview** displaying extracted insights and summaries
+
+## Requirements
+
+- **Bun** runtime (recommended for OpenTUI projects)
+- **Node.js** 16+ (alternative to Bun)
+- **Artifact Miner API** running on `http://127.0.0.1:8000`
+
+## Installation
+
+The React client is located in the `opentui-react-exp/` directory:
+
+<Steps>
+  <Step title="Install Bun (if not already installed)">
+    ```bash
+    # macOS and Linux
+    curl -fsSL https://bun.sh/install | bash
+    
+    # Windows
+    powershell -c "irm bun.sh/install.ps1 | iex"
+    ```
+    
+    **Verify installation:**
+    ```bash
+    bun --version
+    ```
+  </Step>
+  
+  <Step title="Navigate to React Client Directory">
+    ```bash
+    cd opentui-react-exp/
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    bun install
+    ```
+    
+    This installs:
+    - `@opentui/core` and `@opentui/react` - OpenTUI framework
+    - `react` and `react-dom` - React 19
+    - `fdir` - Fast directory traversal
+    - `fuse.js` - Fuzzy search
+    - Development tools (Biome, TypeScript)
+  </Step>
+</Steps>
+
+## Running the Client
+
+<Tabs>
+  <Tab title="Production Mode">
+    Start the client:
+    
+    ```bash
+    bun run src/index.tsx
+    ```
+    
+    The terminal UI will launch directly in your terminal window.
+  </Tab>
+  
+  <Tab title="Development Mode">
+    Run with hot reloading:
+    
+    ```bash
+    bun run dev
+    ```
+    
+    Changes to source files automatically trigger a restart.
+  </Tab>
+  
+  <Tab title="With Backend">
+    Open two terminals:
+    
+    **Terminal 1 - Start API:**
+    ```bash
+    cd ..
+    python -m artifactminer.api.main
+    ```
+    
+    **Terminal 2 - Start Client:**
+    ```bash
+    cd opentui-react-exp/
+    bun run src/index.tsx
+    ```
+  </Tab>
+</Tabs>
+
+## Project Structure
+
+```
+opentui-react-exp/
+├── src/
+│   ├── index.tsx              # Main entry point
+│   ├── types.ts               # TypeScript type definitions
+│   ├── components/
+│   │   ├── Landing.tsx        # Landing page with animation
+│   │   ├── ConsentScreen.tsx  # LLM consent selection
+│   │   ├── FileUpload.tsx     # ZIP file upload
+│   │   ├── ProjectList.tsx    # Repository selection
+│   │   ├── Analysis.tsx       # Analysis progress
+│   │   ├── ResumePreview.tsx  # Results display
+│   │   ├── TopBar.tsx         # Navigation header
+│   │   └── BottomBar.tsx      # Status footer
+│   ├── context/
+│   │   └── AppContext.tsx     # Global state management
+│   ├── api/
+│   │   ├── client.ts          # API client wrapper
+│   │   ├── endpoints.ts       # API endpoint definitions
+│   │   └── types.ts           # API response types
+│   ├── utils/
+│   │   ├── zipScanner.ts      # ZIP file processing
+│   │   ├── searchFilter.ts    # Fuzzy search logic
+│   │   └── pathHelpers.ts     # File path utilities
+│   └── data/
+│       └── mockProjects.ts    # Mock data for testing
+├── package.json               # Dependencies and scripts
+├── tsconfig.json              # TypeScript configuration
+├── biome.json                 # Linter/formatter config
+└── README.md                  # Quick start guide
+```
+
+## Components Overview
+
+### Landing Page
+
+Animated welcome screen with:
+- **Typewriter effect** cycling through taglines
+- **Pulsing gold border** on call-to-action button
+- **Character ripple animation** on "Get Started" text
+
+```tsx
+import { Landing } from "./components/Landing";
+
+<Landing onGetStarted={() => setScreen("consent")} />
+```
+
+**Taglines:**
+- "We build your narrative"
+- "Your repos, rewritten by us"
+- "Proof of work, now polished by us"
+- "Turning your TODOs to ta-das"
+
+### Consent Screen
+
+LLM processing consent with two options:
+- **Consent with LLM** - Allow external AI processing
+- **Consent without LLM** - Local analysis only
+
+```tsx
+import { ConsentScreen } from "./components/ConsentScreen";
+
+<ConsentScreen onConsent={(level) => saveConsent(level)} />
+```
+
+### File Upload
+
+ZIP file selection and scanning:
+- File input with drag-and-drop support
+- Automatic ZIP content extraction
+- Directory filtering (excludes `__MACOSX`, `._*`)
+
+```tsx
+import { FileUpload } from "./components/FileUpload";
+
+<FileUpload onUpload={(zipId) => startAnalysis(zipId)} />
+```
+
+### Project List
+
+Checkbox-based repository selection:
+- Scrollable list of discovered projects
+- Search/filter functionality (Fuse.js)
+- Selection count tracker
+
+```tsx
+import { ProjectList } from "./components/ProjectList";
+
+<ProjectList
+  projects={directories}
+  onSelect={(selected) => analyze(selected)}
+/>
+```
+
+### Analysis Progress
+
+Real-time analysis feedback:
+- Progress bar (percentage complete)
+- Current repository being processed
+- List of completed repositories
+
+### Resume Preview
+
+Formatted display of results:
+- Resume items grouped by project
+- AI summaries (when available)
+- Export to JSON/TXT buttons
+
+## API Client
+
+The client uses a typed API wrapper for backend communication:
+
+```typescript
+import { ApiClient } from "./api/client";
+
+const client = new ApiClient("http://127.0.0.1:8000");
+
+// Upload ZIP
+const { zip_id } = await client.uploadZip(file);
+
+// List directories
+const { directories } = await client.listZipDirectories(zip_id);
+
+// Start analysis
+const result = await client.analyzeZip(zip_id, {
+  directories: selectedDirs,
+});
+
+// Fetch results
+const resumeItems = await client.getResumeItems();
+const summaries = await client.getSummaries(userEmail);
+```
+
+## State Management
+
+Global state managed with React Context:
+
+```typescript
+interface AppState {
+  currentScreen: string;
+  consentLevel: string | null;
+  userEmail: string | null;
+  zipId: number | null;
+  selectedDirectories: string[];
+  resumeItems: ResumeItem[];
+  summaries: Summary[];
+}
+```
+
+## Theming
+
+OpenTUI components styled with terminal-inspired color palette:
+
+```typescript
+export const theme = {
+  gold: "#FFD700",
+  goldDark: "#B8860B",
+  cyan: "#00FFFF",
+  textDim: "#808080",
+  primary: "#4A90E2",
+  success: "#00FF00",
+  error: "#FF0000",
+  background: "#000000",
+  panel: "#1a1a1a",
+};
+```
+
+## Development Scripts
+
+<CodeGroup>
+```bash Run
+bun run src/index.tsx
+```
+
+```bash Watch Mode
+bun run dev
+```
+
+```bash Tests
+bun test
+```
+
+```bash Test Watch
+bun test --watch
+```
+
+```bash Lint
+bun run lint
+```
+
+```bash Format
+bun run format
+```
+
+```bash Auto-Fix
+bun run fix
+```
+</CodeGroup>
+
+## Testing
+
+The client includes unit tests using Bun's built-in test runner:
+
+```typescript
+// src/api/client.test.ts
+import { describe, test, expect } from "bun:test";
+import { ApiClient } from "./client";
+
+describe("ApiClient", () => {
+  test("should upload ZIP file", async () => {
+    const client = new ApiClient("http://localhost:8000");
+    const file = new File(["test"], "test.zip");
+    const result = await client.uploadZip(file);
+    expect(result).toHaveProperty("zip_id");
+  });
+});
+```
+
+Run tests:
+```bash
+bun test
+```
+
+## Mock Data
+
+Development mode includes mock data for offline testing:
+
+```typescript
+// src/data/mockProjects.ts
+export const mockProjects = [
+  {
+    name: "portfolio-website",
+    languages: ["JavaScript", "HTML", "CSS"],
+    frameworks: ["React", "Next.js"],
+    skills_count: 12,
+  },
+  // ...
+];
+```
+
+## Differences from Textual TUI
+
+| Feature | Textual TUI | React Client |
+|---------|-------------|---------------|
+| **Runtime** | Python terminal | Bun/Node.js terminal |
+| **Framework** | Textual | OpenTUI React |
+| **Rendering** | Native terminal UI | Terminal-style UI in terminal |
+| **Animation** | Limited | Rich (typewriter, ripple, glow) |
+| **Mouse Support** | Terminal-dependent | Built-in |
+| **Browser Support** | No | Potential future web version |
+| **Maturity** | Stable | Experimental |
+
+## Known Limitations
+
+<Warning>
+  - **Experimental status**: Features may break or change
+  - **No browser version yet**: Currently runs in terminal like Textual TUI
+  - **Limited documentation**: OpenTUI is a young framework
+  - **Potential bugs**: Not production-ready
+  - **Performance**: May be slower than Textual TUI for large projects
+</Warning>
+
+## Future Enhancements
+
+Planned features for future releases:
+
+- **Web browser support** - Run in actual browser instead of terminal
+- **Real-time collaboration** - Multiple users analyzing same project
+- **Advanced visualizations** - Charts and graphs for metrics
+- **Custom themes** - User-selectable color schemes
+- **Plugin system** - Extensible analysis modules
+- **Offline mode** - Cached results and local-first architecture
+
+## Troubleshooting
+
+<Accordion title="Bun not found">
+  Install Bun:
+  ```bash
+  curl -fsSL https://bun.sh/install | bash
+  ```
+  
+  Or use Node.js:
+  ```bash
+  npm install
+  npm run dev
+  ```
+</Accordion>
+
+<Accordion title="Cannot connect to API">
+  Make sure the backend is running:
+  ```bash
+  python -m artifactminer.api.main
+  ```
+  
+  Verify it's accessible:
+  ```bash
+  curl http://127.0.0.1:8000/consent
+  ```
+</Accordion>
+
+<Accordion title="Module not found errors">
+  Reinstall dependencies:
+  ```bash
+  rm -rf node_modules bun.lock
+  bun install
+  ```
+</Accordion>
+
+<Accordion title="TypeScript errors">
+  Check TypeScript version:
+  ```bash
+  bun --version
+  ```
+  
+  Update if needed:
+  ```bash
+  bun add -D typescript@latest
+  ```
+</Accordion>
+
+## Contributing
+
+The React client is open for experimentation:
+
+1. **Fork the repository**
+2. **Create a feature branch** (`git checkout -b feature/amazing-ui`)
+3. **Make your changes**
+4. **Test thoroughly** (`bun test`)
+5. **Lint and format** (`bun run fix`)
+6. **Submit a pull request**
+
+## Design Philosophy
+
+The React client embraces:
+- **Terminal aesthetic** - Retro computing vibes
+- **Smooth animations** - Modern UX polish
+- **Minimal dependencies** - Fast install and startup
+- **Type safety** - Full TypeScript coverage
+- **Component reusability** - Modular architecture
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Textual TUI" icon="terminal" href="/interfaces/tui">
+    Compare with the stable Python Textual interface
+  </Card>
+  <Card title="CLI Interface" icon="code" href="/interfaces/cli">
+    Use the command-line interface for automation
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore backend API endpoints for integration
+  </Card>
+  <Card title="OpenTUI Docs" icon="external-link" href="https://opentui.dev">
+    Learn more about the OpenTUI framework
+  </Card>
+</CardGroup>

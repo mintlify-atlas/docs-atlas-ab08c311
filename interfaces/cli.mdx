@@ -1,0 +1,494 @@
+---
+title: Command Line Interface (CLI)
+description: Interactive and non-interactive CLI modes for analyzing student project portfolios
+---
+
+## Overview
+
+The Artifact Miner CLI provides both interactive and non-interactive modes for analyzing student project portfolios. You can run quick analyses with command-line flags or use the guided interactive flow for a step-by-step experience.
+
+## Installation
+
+The CLI is available after installing Artifact Miner:
+
+```bash
+pip install artifactminer
+# or
+uv pip install artifactminer
+```
+
+## Quick Start
+
+<CodeGroup>
+```bash Interactive Mode
+python -m artifactminer.main
+```
+
+```bash Non-Interactive Mode
+python -m artifactminer.main -i projects.zip -o report.txt
+```
+
+```bash With uv
+uv run python -m artifactminer.main -i projects.zip -o report.json -c full
+```
+</CodeGroup>
+
+## Command Line Flags
+
+### Required Arguments (Non-Interactive Mode)
+
+| Flag | Long Form | Description | Example |
+|------|-----------|-------------|----------|
+| `-i` | `--input` | Path to ZIP file containing projects | `-i projects.zip` |
+| `-o` | `--output` | Output file path (`.txt` or `.json`) | `-o report.txt` |
+
+### Optional Arguments
+
+| Flag | Long Form | Description | Options | Default |
+|------|-----------|-------------|---------|----------|
+| `-c` | `--consent` | Consent level for LLM usage | `full`, `no_llm`, `none` | `no_llm` |
+| `-u` | `--user-email` | User email for tracking | Any valid email | `cli-user@example.com` |
+
+## Interactive Mode
+
+Run without `-i` and `-o` flags to enter the guided interactive flow:
+
+```bash
+python -m artifactminer.main
+```
+
+<Steps>
+  <Step title="Consent Selection">
+    Choose your consent level for data processing:
+    
+    ```
+    Step 1: Consent
+    ----------------------------------------
+    Choose your consent level:
+      [1] Full   - Allow LLM processing for enhanced analysis
+      [2] No LLM - Local analysis only (no external AI)
+      [3] None   - Minimal analysis
+    
+    Enter choice [1/2/3] (default: 2):
+    ```
+    
+    - **Full**: Enables AI-powered summaries and insights using external LLM services
+    - **No LLM**: Performs local analysis only without external API calls
+    - **None**: Minimal analysis with basic metrics only
+  </Step>
+  
+  <Step title="User Information">
+    Enter your email address for tracking and personalization:
+    
+    ```
+    Step 2: User Information
+    ----------------------------------------
+    Enter your email address: student@school.edu
+    Email: student@school.edu
+    ```
+  </Step>
+  
+  <Step title="Input File Selection">
+    Provide the path to your ZIP file containing project repositories:
+    
+    ```
+    Step 3: Input File
+    ----------------------------------------
+    Enter path to ZIP file: ~/Desktop/my-projects.zip
+    Found: my-projects.zip (45.2 MB)
+    ```
+    
+    The CLI validates that:
+    - File exists at the specified path
+    - File has `.zip` extension
+    - File is readable
+  </Step>
+  
+  <Step title="Repository Selection">
+    After extracting the ZIP, select which repositories to analyze:
+    
+    ```
+    Step 4: Select Repositories
+    ----------------------------------------
+    Discovered 5 git repositories:
+    
+      [1] portfolio-website
+      [2] ml-classifier
+      [3] react-dashboard
+      [4] python-automation
+      [5] discord-bot
+    
+    Enter selection (e.g., '1,3,5' or '1-3' or 'all'):
+    Selection (default: all):
+    ```
+    
+    **Selection formats:**
+    - `all` - Analyze all discovered repositories
+    - `1,3,5` - Specific repositories by number
+    - `1-3` - Range of repositories
+    - `1,3-5,7` - Mix of individual and ranges
+    
+    Example output:
+    ```
+    Selected 3 repositories:
+      ✓ portfolio-website
+      ✓ react-dashboard
+      ✓ discord-bot
+    ```
+  </Step>
+  
+  <Step title="Output File Selection">
+    Specify where to save the analysis results:
+    
+    ```
+    Step 5: Output File
+    ----------------------------------------
+    Enter output path (.json or .txt): ~/Desktop/portfolio-report.json
+    Output: portfolio-report.json
+    
+    Proceed with analysis? [Y/n]:
+    ```
+  </Step>
+</Steps>
+
+## Non-Interactive Mode
+
+For automation and scripting, use command-line flags to run analysis without prompts:
+
+<Tabs>
+  <Tab title="Text Output">
+    ```bash
+    python -m artifactminer.main \
+      -i projects.zip \
+      -o report.txt \
+      -c no_llm
+    ```
+    
+    Generates a human-readable text report with three sections:
+    - **PROJECT ANALYSIS DETAILS** - Metrics per project
+    - **AI SUMMARIES** - Top 3 projects (if consent allows)
+    - **RESUME ITEMS** - Extracted insights
+  </Tab>
+  
+  <Tab title="JSON Output">
+    ```bash
+    python -m artifactminer.main \
+      -i projects.zip \
+      -o report.json \
+      -c full \
+      -u student@school.edu
+    ```
+    
+    Generates structured JSON with:
+    ```json
+    {
+      "exported_at": "2024-03-15T10:30:00Z",
+      "project_analyses": [...],
+      "summaries": [...],
+      "resume_items": [...]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Minimal Analysis">
+    ```bash
+    python -m artifactminer.main -i projects.zip -o report.txt
+    ```
+    
+    Uses defaults:
+    - Consent: `no_llm`
+    - Email: `cli-user@example.com`
+    - Analyzes all repositories
+  </Tab>
+</Tabs>
+
+## Consent Levels Explained
+
+<Accordion title="full - Enhanced AI Analysis">
+  Allows external Large Language Model (LLM) services to process your code for:
+  - **AI-generated project summaries** - Natural language descriptions of each project
+  - **Enhanced skill extraction** - Context-aware identification of technologies
+  - **Intelligent insights** - Recommendations and highlights
+  
+  **Note**: Your code may be sent to external API services (e.g., OpenAI)
+</Accordion>
+
+<Accordion title="no_llm - Local Analysis Only (Recommended)">
+  Performs comprehensive analysis using only local processing:
+  - **Static code analysis** - Language and framework detection
+  - **Git history analysis** - Commit patterns and contribution metrics
+  - **Skill chronology** - Timeline of technology usage
+  - **Resume item generation** - Automatic bullet point creation
+  
+  **No external API calls are made**
+</Accordion>
+
+<Accordion title="none - Minimal Metrics">
+  Basic file and repository scanning:
+  - File counts and directory structure
+  - Basic repository metadata
+  - No skill extraction or insights
+</Accordion>
+
+## Output Formats
+
+### Text Format (`.txt`)
+
+Human-readable report designed for quick review:
+
+```
+================================================================================
+                    PROJECT ANALYSIS DETAILS
+================================================================================
+
+[1] portfolio-website
+--------------------------------------------------------------------------------
+  Path: /tmp/artifacts/portfolio-website
+  Languages: JavaScript, HTML, CSS
+  Frameworks: React, Next.js
+  Skills extracted: 12
+  Insights generated: 8
+  User contribution: 95.3%
+  User commits: 87
+  Commit frequency: 3.45 commits/week
+  Activity period: 2023-01-15 → 2024-06-20
+
+...
+
+================================================================================
+                        AI SUMMARIES (TOP 3)
+================================================================================
+
+portfolio-website:
+  A modern portfolio website built with React and Next.js featuring responsive
+  design, dynamic content loading, and optimized performance...
+
+================================================================================
+                         RESUME ITEMS
+================================================================================
+
+portfolio-website:
+  • Developed responsive portfolio website using React and Next.js with SSR
+  • Implemented dynamic routing and API integration for blog functionality
+  • Optimized bundle size by 40% using code splitting and lazy loading
+...
+```
+
+### JSON Format (`.json`)
+
+Structured data for programmatic processing:
+
+```json
+{
+  "exported_at": "2024-03-15T10:30:00Z",
+  "project_analyses": [
+    {
+      "project_name": "portfolio-website",
+      "project_path": "/tmp/artifacts/portfolio-website",
+      "languages": ["JavaScript", "HTML", "CSS"],
+      "frameworks": ["React", "Next.js"],
+      "skills_count": 12,
+      "insights_count": 8,
+      "user_contribution_pct": 95.3,
+      "user_total_commits": 87,
+      "user_commit_frequency": 3.45,
+      "user_first_commit": "2023-01-15T14:23:00Z",
+      "user_last_commit": "2024-06-20T09:45:00Z",
+      "summary": "A modern portfolio website built with React...",
+      "error": null
+    }
+  ],
+  "summaries": [
+    {
+      "repo_path": "/tmp/artifacts/portfolio-website",
+      "summary_text": "A modern portfolio website..."
+    }
+  ],
+  "resume_items": [
+    {
+      "id": 1,
+      "title": "Responsive Portfolio Development",
+      "content": "Developed responsive portfolio website using React and Next.js with SSR",
+      "category": "Web Development",
+      "project_name": "portfolio-website"
+    }
+  ]
+}
+```
+
+## Post-Analysis Display
+
+After analysis completes, the CLI displays two visualizations in the terminal:
+
+### Project Timeline
+
+Shows each project's activity period with visual indicators:
+
+```
+============================================================
+                  PROJECT TIMELINE
+============================================================
+
+  ● portfolio-website
+      2023-01-15 → 2024-06-20 (521 days)
+  ● react-dashboard
+      2023-09-01 → 2024-05-15 (257 days)
+  ○ ml-classifier
+      2022-03-01 → 2022-08-15 (167 days)
+  ○ python-automation
+      2021-11-10 → 2022-02-28 (110 days)
+```
+
+**Legend:**
+- `●` - Recently active (within 6 months of last commit)
+- `○` - Inactive (older than 6 months)
+
+### Skills Chronology
+
+Displays when skills were first demonstrated, grouped by category:
+
+```
+============================================================
+                SKILLS CHRONOLOGY
+============================================================
+
+  Languages:
+    • Python (first used: 2021-11-10 in python-automation)
+    • JavaScript (first used: 2023-01-15 in portfolio-website)
+    • TypeScript (first used: 2023-09-01 in react-dashboard)
+
+  Frameworks:
+    • Flask (first used: 2022-03-01 in ml-classifier)
+    • React (first used: 2023-01-15 in portfolio-website)
+    • Next.js (first used: 2023-01-15 in portfolio-website)
+
+  Tools:
+    • Git (first used: 2021-11-10 in python-automation)
+    • Docker (first used: 2022-03-01 in ml-classifier)
+    • PostgreSQL (first used: 2023-09-01 in react-dashboard)
+```
+
+## Analysis Progress
+
+During analysis, the CLI shows real-time progress:
+
+```
+⠋ Analyzing repositories ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2/5 react-dashboard
+```
+
+Includes:
+- Animated spinner
+- Progress bar
+- Current repository being analyzed
+- Completed/total count
+
+## Common Use Cases
+
+<CodeGroup>
+```bash Student Portfolio Review
+# Analyze all projects with AI summaries
+python -m artifactminer.main \
+  -i student-portfolio.zip \
+  -o student-report.json \
+  -c full \
+  -u john.doe@university.edu
+```
+
+```bash Quick Local Analysis
+# Fast analysis without external API calls
+python -m artifactminer.main \
+  -i projects.zip \
+  -o quick-report.txt \
+  -c no_llm
+```
+
+```bash Automated CI/CD Integration
+# Run in non-interactive mode for automation
+python -m artifactminer.main \
+  -i /build/artifacts.zip \
+  -o /output/analysis.json \
+  -c none \
+  -u ci-bot@company.com
+```
+
+```bash Interactive Exploration
+# Use guided prompts for repository selection
+python -m artifactminer.main
+# Follow the interactive prompts
+```
+</CodeGroup>
+
+## Error Handling
+
+The CLI validates inputs and provides clear error messages:
+
+```bash
+# Invalid input file
+$ python -m artifactminer.main -i missing.zip -o report.txt
+Error: Invalid input file: missing.zip
+
+# Wrong file extension
+$ python -m artifactminer.main -i file.tar.gz -o report.txt
+File must be a .zip archive.
+
+# Invalid output format
+$ python -m artifactminer.main -i projects.zip -o report.pdf
+Output must be .json or .txt
+
+# No repositories found
+Extracting ZIP to discover repositories...
+No git repositories found in the ZIP file.
+```
+
+## Tips and Best Practices
+
+<Accordion title="Organizing Project ZIPs">
+  Structure your ZIP files with one directory per project:
+  ```
+  projects.zip
+  ├── portfolio-website/
+  │   └── .git/
+  ├── ml-classifier/
+  │   └── .git/
+  └── react-dashboard/
+      └── .git/
+  ```
+  
+  The CLI automatically discovers git repositories in the archive.
+</Accordion>
+
+<Accordion title="Choosing the Right Consent Level">
+  - Use `full` when you need detailed AI-generated summaries and don't mind external API calls
+  - Use `no_llm` (default) for comprehensive analysis without external services - recommended for most users
+  - Use `none` only for basic scanning when you need minimal processing
+</Accordion>
+
+<Accordion title="Performance Optimization">
+  - Large repositories (>1GB) may take several minutes to analyze
+  - Use repository selection in interactive mode to analyze specific projects
+  - JSON output is faster to generate than formatted text
+  - Run with `no_llm` consent to avoid API latency
+</Accordion>
+
+<Accordion title="Output File Management">
+  - The CLI prompts before overwriting existing files in interactive mode
+  - In non-interactive mode, files are overwritten without confirmation
+  - Use timestamped filenames for versioning: `report-2024-03-15.json`
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Textual TUI" icon="terminal" href="/interfaces/tui">
+    Explore the interactive terminal user interface
+  </Card>
+  <Card title="React Client" icon="react" href="/interfaces/react-client">
+    Try the experimental OpenTUI React client
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Integrate Artifact Miner into your applications
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/overview">
+    Customize analysis settings and behavior
+  </Card>
+</CardGroup>

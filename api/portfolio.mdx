@@ -1,0 +1,420 @@
+---
+title: 'Portfolio'
+description: 'Generate and customize portfolio content'
+---
+
+## Overview
+
+The portfolio API assembles complete portfolio data from analyzed projects, including project details, skills, summaries, and resume items. It supports customization through representation preferences.
+
+## Generate Portfolio
+
+Generate complete portfolio content for a portfolio ID.
+
+```bash POST /portfolio/generate
+curl -X POST http://127.0.0.1:8000/portfolio/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+**Request Body:**
+
+<ParamField body="portfolio_id" type="string" required>
+  Portfolio UUID returned by ZIP uploads (min 1 character)
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "consent_level": "local",
+  "generated_at": "2024-03-05T15:30:00",
+  "preferences": {
+    "showcase_project_ids": [1, 2, 3],
+    "project_order": [3, 1, 2],
+    "skills_to_highlight": [5, 12, 8],
+    "hidden_skills": [],
+    "chronology_overrides": [],
+    "comparison_attributes": ["languages", "frameworks"],
+    "custom_rankings": []
+  },
+  "projects": [
+    {
+      "id": 3,
+      "project_name": "api-server",
+      "project_path": "/path/to/api-server",
+      "languages": ["Python"],
+      "frameworks": ["FastAPI"],
+      "first_commit": "2023-06-15T10:00:00",
+      "last_commit": "2024-03-05T14:30:00",
+      "ranking_score": 92.5,
+      "health_score": 88.0,
+      "thumbnail_url": "/uploads/thumbnails/abc123.png",
+      "user_role": "Lead Developer",
+      "evidence": [
+        {
+          "id": 1,
+          "type": "metric",
+          "content": "Reduced API response time by 40%",
+          "source": "Performance testing",
+          "date": "2024-02-15"
+        }
+      ]
+    }
+  ],
+  "resume_items": [
+    {
+      "id": 1,
+      "title": "Built REST API with FastAPI",
+      "content": "Developed a scalable REST API...",
+      "category": "Backend Development",
+      "project_name": "api-server",
+      "created_at": "2024-03-05T10:00:00"
+    }
+  ],
+  "summaries": [
+    {
+      "id": 1,
+      "repo_path": "/path/to/api-server",
+      "user_email": "dev@example.com",
+      "summary_text": "Led development of a FastAPI backend...",
+      "generated_at": "2024-03-05T12:00:00"
+    }
+  ],
+  "skills_chronology": [
+    {
+      "date": "2023-06-15T10:00:00",
+      "skill": "Python",
+      "project": "api-server",
+      "proficiency": 0.9,
+      "category": "Programming Languages"
+    }
+  ],
+  "errors": []
+}
+```
+
+<ResponseField name="success" type="boolean">
+  `true` when at least one project is included in the portfolio
+</ResponseField>
+
+<ResponseField name="portfolio_id" type="string">
+  Portfolio UUID
+</ResponseField>
+
+<ResponseField name="consent_level" type="string">
+  Consent level used during analysis
+</ResponseField>
+
+<ResponseField name="generated_at" type="datetime">
+  Timestamp when the portfolio was generated
+</ResponseField>
+
+<ResponseField name="preferences" type="object">
+  Representation preferences applied to the portfolio
+  
+  <Expandable title="RepresentationPreferences properties">
+    <ResponseField name="showcase_project_ids" type="array">
+      RepoStat IDs to showcase (filters to these projects only)
+    </ResponseField>
+    
+    <ResponseField name="project_order" type="array">
+      Manual project ordering as a list of RepoStat IDs
+    </ResponseField>
+    
+    <ResponseField name="skills_to_highlight" type="array">
+      Skill IDs to highlight in portfolio output
+    </ResponseField>
+    
+    <ResponseField name="hidden_skills" type="array">
+      Skill IDs to hide from portfolio output
+    </ResponseField>
+    
+    <ResponseField name="chronology_overrides" type="array">
+      Manual overrides for project chronology dates
+    </ResponseField>
+    
+    <ResponseField name="comparison_attributes" type="array">
+      Allowed attributes for project comparison: `languages`, `frameworks`, `skills`, `total_commits`, `ranking_score`, `health_score`, `primary_language`, `role`
+    </ResponseField>
+    
+    <ResponseField name="custom_rankings" type="array">
+      Manual custom rankings for projects
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="projects" type="array">
+  Projects included in the portfolio
+  
+  <Expandable title="PortfolioProjectItem properties">
+    <ResponseField name="id" type="integer">
+      Project ID
+    </ResponseField>
+    
+    <ResponseField name="project_name" type="string">
+      Project name
+    </ResponseField>
+    
+    <ResponseField name="project_path" type="string">
+      File system path
+    </ResponseField>
+    
+    <ResponseField name="languages" type="array" optional>
+      Programming languages
+    </ResponseField>
+    
+    <ResponseField name="frameworks" type="array" optional>
+      Frameworks used
+    </ResponseField>
+    
+    <ResponseField name="first_commit" type="datetime" optional>
+      First commit timestamp
+    </ResponseField>
+    
+    <ResponseField name="last_commit" type="datetime" optional>
+      Last commit timestamp
+    </ResponseField>
+    
+    <ResponseField name="ranking_score" type="number" optional>
+      User contribution score (0-100)
+    </ResponseField>
+    
+    <ResponseField name="health_score" type="number" optional>
+      Repository health score
+    </ResponseField>
+    
+    <ResponseField name="thumbnail_url" type="string" optional>
+      Project thumbnail URL
+    </ResponseField>
+    
+    <ResponseField name="user_role" type="string" optional>
+      Your role in the project
+    </ResponseField>
+    
+    <ResponseField name="evidence" type="array">
+      Evidence items for this project
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="resume_items" type="array">
+  Resume items from all portfolio projects
+</ResponseField>
+
+<ResponseField name="summaries" type="array">
+  AI-generated summaries for projects
+</ResponseField>
+
+<ResponseField name="skills_chronology" type="array">
+  Chronological skill progression
+</ResponseField>
+
+<ResponseField name="errors" type="array">
+  Non-critical errors during generation (e.g., preference validation warnings)
+</ResponseField>
+
+**Errors:**
+
+- `422` - portfolio_id is empty
+- `404` - Portfolio not found
+- `400` - Portfolio has no analyzed ZIPs yet
+
+<Note>
+  Before generating a portfolio, you must upload ZIPs and run analysis with `POST /analyze/{zip_id}`.
+</Note>
+
+## Get Portfolio
+
+Retrieve portfolio display data by ID.
+
+```bash GET /portfolio/{portfolio_id}
+curl http://127.0.0.1:8000/portfolio/550e8400-e29b-41d4-a716-446655440000
+```
+
+**Path Parameters:**
+
+<ParamField path="portfolio_id" type="string" required>
+  Portfolio UUID
+</ParamField>
+
+**Response:**
+
+Same structure as `POST /portfolio/generate` response.
+
+## Edit Portfolio Preferences
+
+Customize portfolio content through representation preferences.
+
+```bash POST /portfolio/{portfolio_id}/edit
+curl -X POST http://127.0.0.1:8000/portfolio/550e8400-e29b-41d4-a716-446655440000/edit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "showcase_project_ids": [1, 3, 5],
+    "project_order": [5, 1, 3],
+    "skills_to_highlight": [2, 7, 12],
+    "comparison_attributes": ["languages", "frameworks", "ranking_score"]
+  }'
+```
+
+**Path Parameters:**
+
+<ParamField path="portfolio_id" type="string" required>
+  Portfolio UUID
+</ParamField>
+
+**Request Body:**
+
+<ParamField body="showcase_project_ids" type="array" optional default="[]">
+  RepoStat IDs to showcase. If provided, filters portfolio to only these projects. Use integer repo_stat IDs
+</ParamField>
+
+<ParamField body="project_order" type="array" optional default="[]">
+  Manual project ordering as a list of RepoStat IDs. Projects not in this list appear after ordered projects
+</ParamField>
+
+<ParamField body="skills_to_highlight" type="array" optional default="[]">
+  Skill IDs to highlight in portfolio output
+</ParamField>
+
+<ParamField body="hidden_skills" type="array" optional default="[]">
+  Skill IDs to hide from portfolio output
+</ParamField>
+
+<ParamField body="chronology_overrides" type="array" optional default="[]">
+  Manual overrides for project chronology. Use date-only values (YYYY-MM-DD). Partial overrides allowed
+  
+  Example: `[{"project_id": 1, "first_commit": "2023-01-15", "last_commit": "2024-03-01"}]`
+</ParamField>
+
+<ParamField body="comparison_attributes" type="array" optional default="[]">
+  Allowed attributes for project comparison. Valid values: `languages`, `frameworks`, `skills`, `total_commits`, `ranking_score`, `health_score`, `primary_language`, `role`
+</ParamField>
+
+<ParamField body="custom_rankings" type="array" optional default="[]">
+  Manual custom rankings for projects. Each item has `project_id` and `rank` (≥1)
+  
+  Example: `[{"project_id": 3, "rank": 1}, {"project_id": 1, "rank": 2}]`
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "updated_at": "2024-03-05T16:00:00",
+  "preferences": {
+    "showcase_project_ids": [1, 3, 5],
+    "project_order": [5, 1, 3],
+    "skills_to_highlight": [2, 7, 12],
+    "hidden_skills": [],
+    "chronology_overrides": [],
+    "comparison_attributes": ["languages", "frameworks", "ranking_score"],
+    "custom_rankings": []
+  }
+}
+```
+
+## Get Portfolio Preferences
+
+Retrieve current representation preferences.
+
+```bash GET /views/{portfolio_id}/prefs
+curl http://127.0.0.1:8000/views/550e8400-e29b-41d4-a716-446655440000/prefs
+```
+
+**Response:**
+
+```json
+{
+  "showcase_project_ids": [1, 3, 5],
+  "project_order": [5, 1, 3],
+  "skills_to_highlight": [2, 7, 12],
+  "hidden_skills": [],
+  "chronology_overrides": [],
+  "comparison_attributes": ["languages", "frameworks"],
+  "custom_rankings": []
+}
+```
+
+<Note>
+  If no preferences have been set, returns defaults (all empty arrays).
+</Note>
+
+## Update Portfolio Preferences
+
+Update representation preferences (alternative to POST /portfolio/{id}/edit).
+
+```bash PUT /views/{portfolio_id}/prefs
+curl -X PUT http://127.0.0.1:8000/views/550e8400-e29b-41d4-a716-446655440000/prefs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "showcase_project_ids": [2, 4],
+    "project_order": [4, 2]
+  }'
+```
+
+**Response:**
+
+Same as GET /views/{portfolio_id}/prefs response.
+
+## Example: Complete Portfolio Workflow
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Step 1: Upload and analyze
+with open('projects.zip', 'rb') as f:
+    upload = requests.post(f'{BASE_URL}/zip/upload', files={'file': f}).json()
+    portfolio_id = upload['portfolio_id']
+    zip_id = upload['zip_id']
+
+analysis = requests.post(f'{BASE_URL}/analyze/{zip_id}').json()
+print(f"Analyzed {analysis['repos_found']} repositories")
+
+# Step 2: Generate initial portfolio
+portfolio = requests.post(
+    f'{BASE_URL}/portfolio/generate',
+    json={'portfolio_id': portfolio_id}
+).json()
+
+print(f"Portfolio has {len(portfolio['projects'])} projects")
+
+# Step 3: Get project IDs for customization
+project_ids = [p['id'] for p in portfolio['projects']]
+top_3 = project_ids[:3]
+
+# Step 4: Customize portfolio
+prefs = requests.post(
+    f'{BASE_URL}/portfolio/{portfolio_id}/edit',
+    json={
+        'showcase_project_ids': top_3,
+        'project_order': top_3,
+        'comparison_attributes': ['languages', 'frameworks', 'ranking_score']
+    }
+).json()
+
+print(f"Updated preferences for {len(prefs['preferences']['showcase_project_ids'])} projects")
+
+# Step 5: Regenerate with preferences
+final = requests.post(
+    f'{BASE_URL}/portfolio/generate',
+    json={'portfolio_id': portfolio_id}
+).json()
+
+print(f"Final portfolio: {len(final['projects'])} projects, {len(final['resume_items'])} resume items")
+```
+
+## Related Endpoints
+
+- [POST /analyze/{zip_id}](/api/analysis#analyze-zip) - Analyze repositories first
+- [GET /projects](/api/projects) - Get project IDs for preferences
+- [POST /resume/generate](/api/resume#generate-resume-items) - Generate resume items
+- [GET /skills/chronology](/api/skills#get-skills-chronology) - View skill progression

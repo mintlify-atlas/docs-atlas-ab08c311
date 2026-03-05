@@ -1,0 +1,408 @@
+---
+title: Analyzing Repositories
+description: Extract repository intelligence, user contributions, and health metrics from uploaded projects
+---
+
+## Overview
+
+After uploading ZIP files, the analysis pipeline discovers Git repositories, extracts intelligence about technology stacks and collaboration patterns, and calculates user-specific contribution statistics.
+
+## Analysis Pipeline
+
+The analysis process consists of four major stages:
+
+<Steps>
+  <Step title="Repository Discovery">
+    Scans the extracted ZIP for directories containing `.git` folders.
+    
+    ```bash
+    # Automatically discovers all Git repos in extraction path
+    .extracted/1/
+    ├── web-app/.git/          ← Discovered
+    ├── mobile-app/.git/       ← Discovered
+    └── data-analysis/.git/    ← Discovered
+    ```
+  </Step>
+  
+  <Step title="Repository Intelligence">
+    Analyzes each repository to extract:
+    - Languages and percentages
+    - Frameworks and dependencies
+    - Commit history and windows
+    - Collaboration metadata
+    - Health score (0-100)
+  </Step>
+  
+  <Step title="User Contribution Analysis">
+    Calculates user-specific metrics:
+    - Total commits by the user
+    - Contribution percentage
+    - Commit frequency (commits/week)
+    - Activity breakdown
+    - Inferred role (owner, contributor, etc.)
+  </Step>
+  
+  <Step title="Skills and Evidence Extraction">
+    Runs deep analysis to derive:
+    - Skills detected from languages/frameworks
+    - Proficiency levels
+    - Project evidence and insights
+    - Code quality signals
+  </Step>
+</Steps>
+
+## Starting Analysis
+
+Use the `POST /analyze/{zip_id}` endpoint to begin the full pipeline:
+
+### Basic Analysis
+
+Analyze all Git repositories in the entire ZIP:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/analyze/1" \
+  -H "Content-Type: application/json"
+```
+
+### Directory-Scoped Analysis
+
+Analyze only selected directories:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/analyze/1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "directories": ["web-app", "mobile-app"]
+  }'
+```
+
+<Tip>
+  Use directory scoping to exclude irrelevant folders (e.g., `node_modules/`, `vendor/`) or to incrementally analyze large archives.
+</Tip>
+
+## Analysis Response
+
+The endpoint returns comprehensive results:
+
+```json
+{
+  "zip_id": 1,
+  "extraction_path": ".extracted/1",
+  "repos_found": 3,
+  "repos_analyzed": [
+    {
+      "project_name": "web-app",
+      "project_path": ".extracted/1/web-app",
+      "frameworks": ["React", "Express.js"],
+      "languages": ["JavaScript", "TypeScript", "CSS"],
+      "skills_count": 12,
+      "insights_count": 8,
+      "user_contribution_pct": 87.5,
+      "user_total_commits": 147,
+      "user_commit_frequency": 3.2,
+      "user_first_commit": "2025-01-15T09:00:00",
+      "user_last_commit": "2026-02-28T16:45:00"
+    },
+    {
+      "project_name": "mobile-app",
+      "project_path": ".extracted/1/mobile-app",
+      "frameworks": ["React Native", "Expo"],
+      "languages": ["TypeScript", "JavaScript"],
+      "skills_count": 9,
+      "insights_count": 6,
+      "user_contribution_pct": 45.2,
+      "user_total_commits": 68,
+      "user_commit_frequency": 2.1,
+      "user_first_commit": "2025-09-01T10:30:00",
+      "user_last_commit": "2026-01-20T14:00:00"
+    }
+  ],
+  "rankings": [
+    {
+      "name": "web-app",
+      "score": 87.5,
+      "total_commits": 168,
+      "user_commits": 147
+    },
+    {
+      "name": "mobile-app",
+      "score": 45.2,
+      "total_commits": 150,
+      "user_commits": 68
+    }
+  ],
+  "summaries": [
+    {
+      "project_name": "web-app",
+      "summary": "Full-stack web application with React frontend and Express backend. Primary contributor implementing authentication, real-time updates, and responsive UI."
+    }
+  ],
+  "consent_level": "local-llm",
+  "user_email": "you@example.com"
+}
+```
+
+## Repository Intelligence Metrics
+
+For each discovered repository, the system computes:
+
+### Technology Stack
+
+**Languages detected:**
+- File extension analysis (`.js`, `.py`, `.java`, etc.)
+- Line-of-code percentages
+- Primary language identification
+
+**Frameworks identified:**
+- `package.json` dependencies (Node.js projects)
+- `requirements.txt` / `Pipfile` (Python projects)
+- `pom.xml` / `build.gradle` (Java projects)
+- Configuration files (`.eslintrc`, `tsconfig.json`, etc.)
+
+### Collaboration Metrics
+
+**`is_collaborative` flag:**
+- `true` if multiple Git authors detected
+- `false` if single author (solo project)
+
+**`collaboration_metadata`:**
+```json
+{
+  "total_authors": 4,
+  "commit_distribution": {
+    "you@example.com": 147,
+    "teammate@example.com": 18,
+    "other@example.com": 3
+  }
+}
+```
+
+### Health Score
+
+Repositories receive a health score (0-100) based on:
+
+- **Commit recency**: Recent activity scores higher
+- **Commit frequency**: Regular commits indicate active maintenance
+- **Documentation**: Presence of README, comments, docs/
+- **Testing**: Test files and coverage indicators
+- **Code organization**: Clear directory structure
+
+<Note>
+  Health scoring is deterministic and does not require LLM consent.
+</Note>
+
+## User Contribution Statistics
+
+### Filtering by Email
+
+The analysis uses your configured email (from `/answers`) to filter contributions:
+
+```python
+# System matches your email against Git commit authors
+user_email = "you@example.com"
+user_commits = [c for c in commits if c.author.email == user_email]
+```
+
+### Contribution Metrics
+
+**`userStatspercentages`:**
+- Your commits / total repository commits × 100
+- Indicates ownership level (>70% suggests primary author)
+
+**`commitFrequency`:**
+- Average commits per week during active development
+- Calculated as: `user_total_commits / weeks_between_first_and_last`
+
+**`activity_breakdown`:**
+```json
+{
+  "additions": 12543,
+  "deletions": 3421,
+  "files_changed": 287,
+  "commits_by_month": {
+    "2025-09": 12,
+    "2025-10": 18,
+    "2025-11": 15
+  }
+}
+```
+
+**`user_role`:**
+Automatically inferred based on contribution percentage:
+- **Owner**: >70% of commits
+- **Core Contributor**: 30-70%
+- **Contributor**: 10-30%
+- **Minor Contributor**: &lt;10%
+
+<Tip>
+  You can override the inferred role using `PUT /projects/{project_id}/role`.
+</Tip>
+
+## Repository Ranking
+
+After analyzing all repositories, the system ranks them by your contribution level:
+
+```json
+{
+  "rankings": [
+    {
+      "name": "web-app",
+      "score": 87.5,
+      "total_commits": 168,
+      "user_commits": 147
+    },
+    {
+      "name": "mobile-app",
+      "score": 45.2,
+      "total_commits": 150,
+      "user_commits": 68
+    },
+    {
+      "name": "data-analysis",
+      "score": 12.3,
+      "total_commits": 89,
+      "user_commits": 11
+    }
+  ]
+}
+```
+
+Rankings help prioritize which projects to showcase in your portfolio.
+
+## AI-Generated Summaries
+
+If you've enabled `local-llm` or `cloud` consent, the system generates natural language summaries:
+
+```json
+{
+  "summaries": [
+    {
+      "project_name": "web-app",
+      "summary": "Designed and implemented a full-stack web application for real-time collaboration. Led development of the React frontend with TypeScript, implemented WebSocket-based live updates, and built a RESTful API with Express.js. Contributed 87% of commits over 14 months."
+    }
+  ]
+}
+```
+
+<Note>
+  Summaries are generated for the top 3 ranked projects by default. Without LLM consent, the system uses template-based summaries instead.
+</Note>
+
+## Skills Extraction
+
+The deep analyzer extracts skills from:
+
+- **Languages**: JavaScript, Python, Java, TypeScript, etc.
+- **Frameworks**: React, Django, Spring Boot, etc.
+- **Infrastructure**: Docker, CI/CD configs, cloud deployment files
+- **Tools**: Git, testing frameworks, build systems
+
+Skills are stored with:
+- **Proficiency level** (0.0-1.0 scale)
+- **Evidence** (specific files or patterns that demonstrate the skill)
+- **Category** (Programming Language, Framework, Tool, etc.)
+
+Access extracted skills via:
+```bash
+curl "http://127.0.0.1:8000/skills"
+```
+
+## Analyzing Individual Repositories
+
+You can also analyze a single local repository without uploading a ZIP:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/repos/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_path": "/Users/you/projects/my-app",
+    "user_email": "you@example.com"
+  }'
+```
+
+<Warning>
+  The `POST /repos/analyze` endpoint requires the repository to be accessible on the server's filesystem.
+</Warning>
+
+## Error Handling
+
+### No Git Repositories Found
+
+```json
+{
+  "detail": "No git repositories found in the uploaded ZIP file"
+}
+```
+
+**Solution:** Ensure your projects contain `.git` directories. You can verify:
+```bash
+ls -la project-directory/.git
+```
+
+### User Has No Commits
+
+```json
+{
+  "repos_analyzed": [
+    {
+      "project_name": "team-project",
+      "error": "User you@example.com has no commits in this repository"
+    }
+  ]
+}
+```
+
+**Solution:** Verify your email matches your Git commit author email:
+```bash
+cd project-directory
+git log --author="you@example.com"
+```
+
+## Performance Considerations
+
+<Tip>
+  **Large repositories:** Analysis time scales with:
+  - Number of commits (>1000 commits may take 30+ seconds)
+  - Number of files (scans all file types)
+  - LLM consent level (cloud LLM adds 5-10 seconds per project)
+</Tip>
+
+## Next Steps
+
+After analysis completes:
+
+1. **[View project details](/guides/generating-output)** - Access extracted intelligence
+2. **[Generate portfolio](/guides/generating-output)** - Create resume and portfolio artifacts
+3. **[Customize output](/guides/generating-output)** - Reorder projects, highlight skills, edit summaries
+
+## API Reference
+
+### POST /analyze/{zip_id}
+
+Orchestrates full analysis pipeline for an uploaded ZIP.
+
+**Path Parameters:**
+- `zip_id` (integer, required): Database ID from `/zip/upload`
+
+**Request Body (optional):**
+```json
+{
+  "directories": ["web-app", "mobile-app"]
+}
+```
+
+**Returns:** `AnalyzeResponse` with repos analyzed, rankings, and summaries
+
+### POST /repos/analyze
+
+Analyzes a single local repository.
+
+**Request Body:**
+```json
+{
+  "repo_path": "/path/to/repo",
+  "user_email": "you@example.com"
+}
+```
+
+**Returns:** Repository stats and user contribution metrics

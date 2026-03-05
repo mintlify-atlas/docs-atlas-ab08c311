@@ -1,0 +1,573 @@
+---
+title: Resume Generation
+description: Generate, edit, and manage resume items from analyzed project insights with flexible representation preferences
+---
+
+## Overview
+
+Resume Generation transforms extracted project insights into structured, editable resume items. The system supports on-demand generation, manual editing, and flexible representation preferences to tailor portfolio presentations for different audiences.
+
+## Resume Item Model
+
+### Database Schema
+
+```python
+class ResumeItem(Base):
+    __tablename__ = "resume_items"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String, nullable=True)
+    repo_stat_id = Column(
+        Integer, ForeignKey("repo_stats.id", ondelete="CASCADE"), nullable=True
+    )
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+    
+    # Relationships
+    repo_stat = relationship("RepoStat", back_populates="resume_items")
+```
+
+### Response Schema
+
+```python
+class ResumeItemResponse(BaseModel):
+    """Response shape for resume/portfolio items."""
+    
+    id: int
+    title: str
+    content: str
+    category: str | None = None
+    project_name: str | None = None
+    role: str | None = None
+    created_at: datetime
+```
+
+## Generation Workflow
+
+### Automatic Generation
+
+Generate resume items for analyzed projects:
+
+```bash
+POST /resume/generate
+Content-Type: application/json
+
+{
+  "project_ids": [1, 3, 5],
+  "regenerate": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "items_generated": 12,
+  "resume_items": [],
+  "consent_level": "none",
+  "errors": [],
+  "warnings": []
+}
+```
+
+<Note>
+  **Important**: As of the latest version, insights are persisted as `ProjectEvidence` rows, not `ResumeItem` rows. The `items_generated` field reflects evidence count, and `resume_items` will be empty.
+</Note>
+
+### Generation Process
+
+From `src/artifactminer/api/resume.py:27-131`:
+
+```python
+async def generate_resume_for_project(
+    db: Session,
+    repo_stat: RepoStat,
+    user_email: str,
+    consent_level: str,
+    regenerate: bool = False,
+) -> tuple[int, list[str], list[str]]:
+    """Generate resume items for a single project.
+    
+    Args:
+        db: Database session
+        repo_stat: RepoStat model for the project
+        user_email: User's email for contribution tracking
+        consent_level: Consent level for LLM usage
+        regenerate: If True, delete existing evidence first
+    
+    Returns:
+        Tuple of (evidence count, critical errors, warnings)
+    """
+    errors = []
+    warnings = []
+    
+    # Delete existing generated rows if regenerate is requested
+    if regenerate:
+        deleted_resume_items = (
+            db.query(ResumeItem)
+            .filter(ResumeItem.repo_stat_id == repo_stat.id)
+            .delete()
+        )
+        deleted_evidence_items = (
+            db.query(ProjectEvidence)
+            .filter(ProjectEvidence.repo_stat_id == repo_stat.id)
+            .delete()
+        )
+    
+    # Collect user additions for analysis context
+    additions_text = ""
+    if repo_stat.project_path and Path(repo_stat.project_path).exists():
+        try:
+            user_additions = collect_user_additions(
+                repo_path=str(repo_stat.project_path),
+                user_email=user_email,
+                max_commits=500,
+            )
+            additions_text = "\n".join(user_additions)
+        except Exception as e:
+            warnings.append(f"Could not collect additions: {e}")
+    
+    # Run deep analysis to extract insights
+    analyzer = DeepRepoAnalyzer(enable_llm=False)
+    
+    deep_result = analyzer.analyze(
+        repo_path=str(repo_stat.project_path),
+        repo_stat=repo_stat,
+        user_email=user_email,
+        user_contributions={"additions": additions_text},
+        consent_level=consent_level,
+    )
+    
+    # Persist skills
+    persist_extracted_skills(
+        db=db,
+        repo_stat_id=repo_stat.id,
+        extracted=deep_result.skills,
+        user_email=user_email,
+        commit=False,
+    )
+    
+    # Persist insights as evidence
+    persisted_evidence = persist_insights_as_project_evidence(
+        db=db,
+        repo_stat_id=repo_stat.id,
+        insights=deep_result.insights,
+        repo_last_commit=repo_stat.last_commit,
+        commit=False,
+    )
+    
+    evidence_count = len(persisted_evidence)
+    return evidence_count, errors, warnings
+```
+
+### How to Get Project IDs
+
+Project IDs are the database primary keys for `RepoStat` entries:
+
+**1. List all projects:**
+```bash
+GET /projects
+```
+
+**2. Get specific project:**
+```bash
+GET /projects/{project_id}
+```
+
+**3. After analysis:**
+```bash
+POST /analyze/repo
+# Response includes:
+{
+  "id": 1,
+  "project_name": "my-app",
+  "repo_stat_id": 1
+}
+```
+
+**Example Workflow:**
+```bash
+# Step 1: Analyze a repository
+POST /analyze/repo
+# Response: {"id": 1, "project_name": "my-app", ...}
+
+# Step 2: Generate resume items using the project ID
+POST /resume/generate
+{
+  "project_ids": [1],
+  "regenerate": false
+}
+```
+
+## Editing Resume Items
+
+### Update Title, Content, or Category
+
+```bash
+POST /resume/{resume_id}/edit
+Content-Type: application/json
+
+{
+  "title": "Led development of high-performance API service",
+  "content": "Architected and implemented a FastAPI-based microservice handling 10k+ req/sec with 99.9% uptime. Designed RESTful endpoints with Pydantic validation and async processing.",
+  "category": "Backend Development"
+}
+```
+
+**Response:**
+```json
+{
+  "id": 42,
+  "title": "Led development of high-performance API service",
+  "content": "Architected and implemented a FastAPI-based microservice handling 10k+ req/sec with 99.9% uptime. Designed RESTful endpoints with Pydantic validation and async processing.",
+  "category": "Backend Development",
+  "project_name": "api-gateway",
+  "role": "Lead Backend Engineer",
+  "created_at": "2024-12-15T10:30:00"
+}
+```
+
+### Partial Updates
+
+Only update specific fields:
+
+```bash
+POST /resume/42/edit
+Content-Type: application/json
+
+{
+  "category": "Technical Leadership"
+}
+```
+
+<Info>
+  At least one field (title, content, or category) must be provided. The endpoint accepts partial updates.
+</Info>
+
+### Edit Implementation
+
+From `src/artifactminer/api/resume.py:269-335`:
+
+```python
+@router.post("/{resume_id}/edit", response_model=ResumeItemResponse)
+async def edit_resume_item(
+    resume_id: int = ApiPath(..., gt=0),
+    request: ResumeItemEditRequest = Body(...),
+    db: Session = Depends(get_db),
+) -> ResumeItemResponse:
+    """Edit a resume item's title, content, and/or category.
+    
+    Accepts partial updates - only provided fields are updated.
+    Returns 404 if the item doesn't exist or project is soft-deleted.
+    """
+    result = (
+        db.query(ResumeItem, RepoStat)
+        .outerjoin(RepoStat, ResumeItem.repo_stat_id == RepoStat.id)
+        .filter(ResumeItem.id == resume_id)
+        .first()
+    )
+    
+    if result is None:
+        raise HTTPException(status_code=404, detail="Resume item not found")
+    
+    resume_item, repo_stat = result
+    
+    if repo_stat is not None and repo_stat.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Resume item not found")
+    
+    # Apply partial updates
+    if request.title is not None:
+        resume_item.title = request.title
+    if request.content is not None:
+        resume_item.content = request.content
+    if request.category is not None:
+        resume_item.category = request.category
+    
+    db.commit()
+    db.refresh(resume_item)
+    
+    return ResumeItemResponse(...)
+```
+
+## Representation Preferences
+
+### Preference Model
+
+```python
+class RepresentationPreferences(BaseModel):
+    """User preferences for portfolio representation."""
+    
+    showcase_project_ids: list[str | int] = Field(
+        default_factory=list,
+        description="Project IDs or names to showcase (empty = all projects)"
+    )
+    project_order: list[str | int] = Field(
+        default_factory=list,
+        description="Custom project ordering (IDs or names)"
+    )
+    hidden_skills: list[str] = Field(
+        default_factory=list,
+        description="Skills to hide from portfolio view"
+    )
+    highlighted_skills: list[str] = Field(
+        default_factory=list,
+        description="Skills to emphasize in portfolio"
+    )
+    skill_date_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="Override first-use dates for skills (ISO format)"
+    )
+    custom_project_ranks: dict[str, float] = Field(
+        default_factory=dict,
+        description="Manual ranking scores for projects"
+    )
+    comparison_attributes: list[str] = Field(
+        default_factory=list,
+        description="Attributes to use for project comparison"
+    )
+```
+
+### Set Preferences
+
+```bash
+POST /portfolio/{portfolio_id}/edit
+Content-Type: application/json
+
+{
+  "showcase_project_ids": [1, 3, 5],
+  "project_order": ["flagship-app", "side-project", "open-source-contrib"],
+  "highlighted_skills": ["FastAPI", "React", "PostgreSQL", "Docker"],
+  "hidden_skills": ["Basic HTML/CSS"],
+  "skill_date_overrides": {
+    "Python": "2020-01-15"
+  },
+  "custom_project_ranks": {
+    "flagship-app": 1.0,
+    "side-project": 0.8
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "updated_at": "2026-03-05T15:45:30",
+  "preferences": {
+    "showcase_project_ids": [1, 3, 5],
+    "project_order": ["flagship-app", "side-project", "open-source-contrib"],
+    "highlighted_skills": ["FastAPI", "React", "PostgreSQL", "Docker"],
+    "hidden_skills": ["Basic HTML/CSS"],
+    "skill_date_overrides": {
+      "Python": "2020-01-15"
+    },
+    "custom_project_ranks": {
+      "flagship-app": 1.0,
+      "side-project": 0.8
+    }
+  }
+}
+```
+
+### Preference Storage
+
+```python
+class RepresentationPref(Base):
+    __tablename__ = "representation_prefs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(String, unique=True, nullable=False, index=True)
+    showcase_project_ids = Column(JSON, nullable=True)
+    project_order = Column(JSON, nullable=True)
+    hidden_skills = Column(JSON, nullable=True)
+    highlighted_skills = Column(JSON, nullable=True)
+    skill_date_overrides = Column(JSON, nullable=True)
+    custom_project_ranks = Column(JSON, nullable=True)
+    comparison_attributes = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
+    updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC).replace(tzinfo=None))
+```
+
+## Retrieve Resume Items
+
+### List All Resume Items
+
+```bash
+GET /resume
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "title": "Built microservices architecture",
+    "content": "Designed and implemented 5 interconnected microservices using FastAPI...",
+    "category": "Backend Development",
+    "project_name": "api-platform",
+    "role": "Lead Backend Engineer",
+    "created_at": "2024-12-20T10:00:00"
+  },
+  {
+    "id": 2,
+    "title": "Implemented CI/CD pipeline",
+    "content": "Set up GitHub Actions workflow with automated testing, linting, and deployment...",
+    "category": "DevOps",
+    "project_name": "api-platform",
+    "role": "Lead Backend Engineer",
+    "created_at": "2024-12-20T10:05:00"
+  }
+]
+```
+
+### Filter by Project
+
+```bash
+GET /resume?project_id=1
+```
+
+Returns only resume items associated with project ID 1.
+
+### Get Single Resume Item
+
+```bash
+GET /resume/{resume_id}
+```
+
+**Response:**
+```json
+{
+  "id": 42,
+  "title": "Optimized database queries",
+  "content": "Reduced query time by 80% through strategic indexing and query optimization in PostgreSQL...",
+  "category": "Performance Optimization",
+  "project_name": "data-warehouse",
+  "role": "Database Engineer",
+  "created_at": "2024-11-10T14:30:00"
+}
+```
+
+## Integration with Portfolio
+
+Resume items are included in portfolio generation:
+
+```bash
+POST /portfolio/generate
+Content-Type: application/json
+
+{
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response includes resume_items:**
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "projects": [...],
+  "resume_items": [
+    {
+      "id": 1,
+      "title": "Built microservices architecture",
+      "content": "Designed and implemented 5 interconnected microservices...",
+      "category": "Backend Development",
+      "project_name": "api-platform",
+      "created_at": "2024-12-20T10:00:00"
+    }
+  ],
+  "summaries": [...],
+  "skills_chronology": [...]
+}
+```
+
+### Resume Item Sorting
+
+From `src/artifactminer/api/portfolio.py:234-257`:
+
+```python
+resume_items: list[ResumeItemResponse] = []
+if selected_project_ids:
+    rows = (
+        db.query(ResumeItem, RepoStat)
+        .join(RepoStat, ResumeItem.repo_stat_id == RepoStat.id)
+        .filter(RepoStat.deleted_at.is_(None))
+        .filter(ResumeItem.repo_stat_id.in_(selected_project_ids))
+        .order_by(
+            RepoStat.last_commit.desc().nullslast(),
+            ResumeItem.created_at.desc(),
+            ResumeItem.id.desc(),
+        )
+        .all()
+    )
+```
+
+Items are sorted by:
+1. Project's last commit (newest first)
+2. Resume item creation date (newest first)
+3. Resume item ID (descending)
+
+## Error Handling
+
+### Project Not Found
+
+```json
+{
+  "status_code": 404,
+  "detail": "Projects not found or deleted: [99, 100]"
+}
+```
+
+### Resume Item Not Found
+
+```json
+{
+  "status_code": 404,
+  "detail": "Resume item not found"
+}
+```
+
+### Validation Error (Edit Request)
+
+```json
+{
+  "status_code": 422,
+  "detail": "At least one of title, content, or category must be provided"
+}
+```
+
+### Generation Warnings
+
+Non-critical issues are returned in the response:
+
+```json
+{
+  "success": true,
+  "items_generated": 8,
+  "warnings": [
+    "Could not collect additions for legacy-project: Repository not accessible"
+  ],
+  "errors": []
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Evidence Tracking" icon="file-check" href="/features/evidence-tracking">
+    Learn how evidence is extracted and converted to resume items
+  </Card>
+  <Card title="Skill Extraction" icon="brain" href="/features/skill-extraction">
+    Understand how skills are detected for resume generation
+  </Card>
+  <Card title="Portfolio Analysis" icon="folder-tree" href="/features/portfolio-analysis">
+    See how resume items integrate with portfolio views
+  </Card>
+  <Card title="Resume API" icon="code" href="/api/resume">
+    Complete API documentation for resume endpoints
+  </Card>
+</CardGroup>

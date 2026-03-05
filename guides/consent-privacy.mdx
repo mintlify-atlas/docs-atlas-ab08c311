@@ -1,0 +1,323 @@
+---
+title: Consent & Privacy
+description: Configure data handling, consent levels, and optional LLM integration
+---
+
+## Overview
+
+Artifact Miner implements consent-gated data processing with four privacy levels. You control whether analysis uses local-only processing, local LLM assistance, or cloud-based AI services.
+
+## Consent Levels
+
+Choose the consent level that matches your privacy and feature requirements:
+
+<CardGroup cols={2}>
+  <Card title="none" icon="ban">
+    **No data processing**
+    
+    Analysis is disabled. Use this to review consent options before proceeding.
+  </Card>
+  
+  <Card title="local" icon="laptop">
+    **Local processing only**
+    
+    Deterministic analysis using file patterns, Git statistics, and repository metrics. No LLM integration.
+    
+    - File type detection
+    - Framework identification
+    - Git commit analysis
+    - User contribution metrics
+  </Card>
+  
+  <Card title="local-llm" icon="server">
+    **Local LLM processing**
+    
+    Uses locally-hosted Ollama models for AI-powered summaries and insights. Data never leaves your machine.
+    
+    - All features from `local`
+    - AI-generated project summaries
+    - Natural language insights
+    - Requires Ollama installation
+  </Card>
+  
+  <Card title="cloud" icon="cloud">
+    **Cloud LLM processing**
+    
+    Uses OpenAI API for advanced AI summaries. Code snippets and commit messages are sent to OpenAI.
+    
+    - All features from `local-llm`
+    - More sophisticated summaries
+    - Better contextual understanding
+    - Requires OpenAI API key
+  </Card>
+</CardGroup>
+
+## Setting Your Consent Level
+
+<Steps>
+  <Step title="Check current consent">
+    Retrieve your current consent configuration:
+    
+    ```bash
+    curl "http://127.0.0.1:8000/consent"
+    ```
+    
+    **Response:**
+    
+    ```json
+    {
+      "consent_level": "none",
+      "accepted_at": null
+    }
+    ```
+  </Step>
+  
+  <Step title="Update consent level">
+    Set your preferred consent level:
+    
+    ```bash
+    curl -X PUT "http://127.0.0.1:8000/consent" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "consent_level": "local-llm"
+      }'
+    ```
+    
+    **Response:**
+    
+    ```json
+    {
+      "consent_level": "local-llm",
+      "accepted_at": "2026-03-05T14:22:30"
+    }
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  Consent is stored in the database and persists across sessions. You can change it at any time.
+</Note>
+
+## Data Handling by Consent Level
+
+### Local Processing (`local`)
+
+When you select `local` consent, the system performs:
+
+- **Language detection**: Analyzes file extensions and content patterns
+- **Framework identification**: Detects dependencies in `package.json`, `requirements.txt`, etc.
+- **Git statistics**: Counts commits, analyzes commit frequency, calculates contribution percentages
+- **Health scoring**: Evaluates repository quality metrics (commit activity, documentation, testing)
+- **Skill extraction**: Maps detected languages and frameworks to skill categories
+
+**No data leaves your machine.** All processing is deterministic and template-based.
+
+### Local LLM Integration (`local-llm`)
+
+<Warning>
+  Requires Ollama to be installed and running locally. See [Ollama installation guide](https://ollama.ai).
+</Warning>
+
+With `local-llm`, the system additionally:
+
+- Generates natural language summaries of your contributions
+- Creates project descriptions from Git history
+- Produces insights about collaboration patterns
+
+**Setup Ollama:**
+
+```bash
+# Install Ollama (macOS)
+brew install ollama
+
+# Start Ollama service
+ollama serve
+
+# Pull a model (e.g., llama2)
+ollama pull llama2
+```
+
+**Configuration:**
+
+Ensure your `.env` file contains:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+```
+
+### Cloud LLM Integration (`cloud`)
+
+<Warning>
+  Requires an OpenAI API key. Code snippets and commit messages will be sent to OpenAI's servers.
+</Warning>
+
+With `cloud` consent, the system uses OpenAI's GPT models for:
+
+- Enhanced project summaries with better context understanding
+- More sophisticated skill proficiency estimation
+- Advanced insight generation
+
+**Setup OpenAI:**
+
+```bash
+# Set your API key in .env
+OPENAI_API_KEY=sk-your-api-key-here
+```
+
+## Privacy Considerations
+
+### What Data is Processed?
+
+Depending on your consent level, the system may process:
+
+| Data Type | `local` | `local-llm` | `cloud` |
+|-----------|---------|-------------|----------|
+| File paths and names | ✓ | ✓ | ✓ |
+| Git commit metadata | ✓ | ✓ | ✓ |
+| User email (from Git) | ✓ | ✓ | ✓ |
+| Code additions (diffs) | ✓ | ✓ | ✓ |
+| Sent to external LLM | ✗ | ✗ | ✓ |
+| Leaves your machine | ✗ | ✗ | ✓ |
+
+### User Email Collection
+
+Before analysis, you must provide your email address (matching your Git commit author email):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/answers" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "answers": {
+      "email": "you@example.com",
+      "end_goal": "Build a technical portfolio for job applications"
+    }
+  }'
+```
+
+This email is used to:
+- Filter your contributions from collaborative repositories
+- Calculate your commit percentage
+- Attribute skills and evidence to your work
+
+<Note>
+  Your email is stored locally in the SQLite database and never transmitted externally (unless you use `cloud` consent, in which case it may appear in Git commit metadata sent to OpenAI).
+</Note>
+
+## Switching Between LLM Providers
+
+The system automatically selects the LLM provider based on your consent level:
+
+```python
+# Automatically determined by consent_level
+if consent_level == "cloud":
+    # Uses OpenAI helper (src/artifactminer/helpers/openai_helper.py)
+    llm_provider = "openai"
+elif consent_level == "local-llm":
+    # Uses Ollama helper (src/artifactminer/helpers/ollama_helper.py)
+    llm_provider = "ollama"
+else:
+    # No LLM, template-based summaries only
+    llm_provider = None
+```
+
+## Configuration Questions
+
+Beyond consent, the system collects answers to configuration questions:
+
+<Steps>
+  <Step title="List available questions">
+    ```bash
+    curl "http://127.0.0.1:8000/questions"
+    ```
+    
+    **Response:**
+    
+    ```json
+    [
+      {
+        "id": 1,
+        "key": "email",
+        "question_text": "What is your email address (must match Git author email)?",
+        "required": true,
+        "answer_type": "email"
+      },
+      {
+        "id": 2,
+        "key": "end_goal",
+        "question_text": "What is your goal for this analysis?",
+        "required": true,
+        "answer_type": "text"
+      }
+    ]
+    ```
+  </Step>
+  
+  <Step title="Submit answers">
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/answers" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "answers": {
+          "email": "student@university.edu",
+          "end_goal": "Showcase projects for internship applications"
+        }
+      }'
+    ```
+  </Step>
+</Steps>
+
+## API Reference
+
+### GET /consent
+
+Retrieve current consent state.
+
+**Returns:**
+```json
+{
+  "consent_level": "local" | "local-llm" | "cloud" | "none",
+  "accepted_at": "2026-03-05T14:22:30" | null
+}
+```
+
+### PUT /consent
+
+Update consent level.
+
+**Request Body:**
+```json
+{
+  "consent_level": "local" | "local-llm" | "cloud" | "none"
+}
+```
+
+**Returns:** Updated consent state with timestamp
+
+### GET /questions
+
+List all configuration questions.
+
+**Returns:** Array of question objects with `id`, `key`, `question_text`, `required`, and `answer_type`
+
+### POST /answers
+
+Submit answers to configuration questions.
+
+**Request Body:**
+```json
+{
+  "answers": {
+    "email": "your-git-email@example.com",
+    "end_goal": "Your analysis objective"
+  }
+}
+```
+
+## Next Steps
+
+After configuring consent:
+
+1. **[Upload projects](/guides/uploading-projects)** - Submit ZIP files for analysis
+2. **[Analyze repositories](/guides/analyzing-repositories)** - Extract intelligence from your code
+3. **[Generate outputs](/guides/generating-output)** - Create portfolio artifacts

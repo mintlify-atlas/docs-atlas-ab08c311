@@ -1,0 +1,420 @@
+---
+title: Portfolio Analysis
+description: Analyze multiple projects across uploaded ZIPs with intelligent portfolio discovery and ranking
+---
+
+## Overview
+
+Portfolio Analysis enables you to analyze collections of git repositories from multiple ZIP uploads, intelligently discover projects, rank them by contribution significance, and generate comprehensive portfolio views. The system links multiple ZIPs through a `portfolio_id` and provides flexible filtering and ordering controls.
+
+## Multi-ZIP Workflow
+
+### Upload and Link ZIPs
+
+Portfolio analysis supports incremental uploads where multiple ZIP files contribute to a single portfolio session:
+
+```bash
+# Upload first ZIP (generates portfolio_id automatically)
+POST /zip
+Content-Type: multipart/form-data
+
+file: my-projects-2024.zip
+portfolio_id: "optional-custom-id"
+```
+
+**Response:**
+```json
+{
+  "zip_id": 1,
+  "filename": "my-projects-2024.zip",
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Portfolio ID Linkage
+
+The `portfolio_id` serves as the linking key across multiple uploads:
+
+- **Auto-generated**: If not provided, a UUID is generated automatically
+- **Custom**: Provide your own ID to group related uploads
+- **Persistent**: All ZIPs with the same `portfolio_id` are analyzed together
+
+```python
+# Database schema (UploadedZip table)
+portfolio_id = Column(String, nullable=True, index=True)
+```
+
+### Analyze Portfolio Projects
+
+Once ZIPs are uploaded, trigger analysis to extract project data:
+
+```bash
+POST /analyze/{zip_id}
+```
+
+The analysis pipeline:
+1. Extracts ZIP to `./extracted/{zip_id}/`
+2. Discovers git repositories recursively
+3. Analyzes each repository (stats, skills, insights)
+4. Stores extraction path in database for portfolio grouping
+
+From `src/artifactminer/api/analyze.py:351-354`:
+```python
+extraction_path = extract_zip_to_persistent_location(uploaded_zip.path, zip_id)
+
+# Update the UploadedZip record with extraction path
+uploaded_zip.extraction_path = str(extraction_path)
+```
+
+## Repository Discovery
+
+### Automatic Discovery
+
+The system recursively scans extraction directories to find git repositories:
+
+```python
+def discover_git_repos(base_path: Path) -> List[Path]:
+    """Recursively find all directories containing a .git folder."""
+    git_repos = []
+    if base_path.is_dir() and isGitRepo(base_path):
+        git_repos.append(base_path)
+    
+    # Walk through all directories
+    for path in base_path.rglob("*"):
+        if path.is_dir() and isGitRepo(path):
+            # Avoid nested .git directories
+            is_nested = any(
+                isGitRepo(parent)
+                for parent in path.parents
+                if parent != base_path and parent.is_relative_to(base_path)
+            )
+            if not is_nested:
+                git_repos.append(path)
+    
+    return git_repos
+```
+
+### Multi-Path Discovery
+
+For portfolios with multiple ZIPs, the system discovers repositories across all extraction paths:
+
+```python
+def discover_git_repos_from_multiple_paths(base_paths: List[Path]) -> List[Path]:
+    """Discover git repositories across multiple extraction paths.
+    
+    Deduplicates repositories by name to avoid analyzing the same project twice.
+    """
+    all_repos = []
+    seen_repo_names = set()
+    
+    for base_path in base_paths:
+        repos = discover_git_repos(base_path)
+        for repo in repos:
+            if repo.name not in seen_repo_names:
+                all_repos.append(repo)
+                seen_repo_names.add(repo.name)
+            else:
+                print(f"[analyze] Skipping duplicate repo: {repo.name}")
+    
+    return all_repos
+```
+
+### Selective Directory Analysis
+
+Optionally specify which directories to analyze within a ZIP:
+
+```bash
+POST /analyze/{zip_id}
+Content-Type: application/json
+
+{
+  "directories": ["work-projects", "open-source"]
+}
+```
+
+The system resolves directory names relative to the extraction root:
+
+```python
+def resolve_selected_dirs(extraction_path: Path, directories: list[str]) -> list[Path]:
+    """Resolve user-selected directories into valid paths under extraction root."""
+    extraction_root = extraction_path.resolve()
+    base_paths: list[Path] = []
+    
+    for raw in directories:
+        candidate = extraction_root / Path(raw)
+        if candidate.exists() and candidate.is_dir():
+            base_paths.append(candidate)
+    
+    return base_paths
+```
+
+## Project Ranking
+
+### Ranking Algorithm
+
+Projects are ranked based on user contribution significance:
+
+```python
+def rank_projects(extraction_path: str, user_email: str) -> List[Dict]:
+    """Rank projects by user contribution percentage and commit volume."""
+    rankings = []
+    for repo in discover_repos(extraction_path):
+        user_stats = getUserRepoStats(repo, user_email)
+        score = calculate_ranking_score(
+            user_commits=user_stats.total_commits,
+            total_commits=repo.total_commits,
+            contribution_pct=user_stats.userStatspercentages
+        )
+        rankings.append({
+            "name": repo.project_name,
+            "score": score,
+            "total_commits": repo.total_commits,
+            "user_commits": user_stats.total_commits
+        })
+    return sorted(rankings, key=lambda x: x["score"], reverse=True)
+```
+
+### Ranking Persistence
+
+Ranking scores are stored in the `RepoStat` table:
+
+```python
+# From analyze.py:536-538
+repo_stat.ranking_score = rank_info["score"]
+repo_stat.ranked_at = datetime.now(UTC).replace(tzinfo=None)
+db.commit()
+```
+
+**Database Schema:**
+```python
+ranking_score = Column(Float, nullable=True)
+ranked_at = Column(DateTime, nullable=True)
+```
+
+### Default Project Sorting
+
+Projects are sorted by ranking score, then by recency:
+
+```python
+def _project_sort_key(project: RepoStat) -> tuple:
+    ts = project.last_commit.timestamp() if project.last_commit else 0.0
+    return (
+        project.ranking_score is None,  # Unranked projects last
+        -(project.ranking_score or 0.0),  # Higher scores first
+        project.last_commit is None,  # Projects without commits last
+        -ts,  # More recent first
+        project.id  # Tie-breaker
+    )
+```
+
+## Generate Portfolio View
+
+### Basic Generation
+
+Generate a complete portfolio view from analyzed projects:
+
+```bash
+POST /portfolio/generate
+Content-Type: application/json
+
+{
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "consent_level": "none",
+  "generated_at": "2026-03-05T12:34:56",
+  "preferences": {
+    "showcase_project_ids": [],
+    "project_order": [],
+    "hidden_skills": [],
+    "highlighted_skills": []
+  },
+  "projects": [
+    {
+      "id": 1,
+      "project_name": "artifact-miner",
+      "project_path": "./.extracted/1/artifact-miner",
+      "languages": ["Python", "JavaScript"],
+      "frameworks": ["FastAPI", "React"],
+      "first_commit": "2024-01-15T10:00:00",
+      "last_commit": "2024-12-20T18:30:00",
+      "ranking_score": 0.87,
+      "health_score": 92.5,
+      "thumbnail_url": "/uploads/thumbnails/project-1.png",
+      "user_role": "Lead Developer",
+      "evidence": [
+        {
+          "id": 1,
+          "type": "evaluation",
+          "content": "API design and architecture: Clean API design with validation and DI shows architectural maturity.",
+          "source": "FastAPI decorators; Pydantic models; Dependency injection",
+          "date": "2024-12-20"
+        }
+      ]
+    }
+  ],
+  "resume_items": [],
+  "summaries": [],
+  "skills_chronology": [
+    {
+      "date": "2024-01-15T10:00:00",
+      "skill": "FastAPI",
+      "project": "artifact-miner",
+      "proficiency": 0.85,
+      "category": "Web Frameworks"
+    }
+  ],
+  "errors": []
+}
+```
+
+### Portfolio Path Filtering
+
+The system filters projects by extraction path prefixes:
+
+```python
+# From portfolio.py:195-208
+extraction_prefixes = sorted({
+    z.extraction_path.rstrip("/")
+    for z in zips
+    if z.extraction_path and z.extraction_path.strip()
+})
+
+projects = (
+    db.query(RepoStat)
+    .filter(RepoStat.deleted_at.is_(None))
+    .filter(_build_path_boundary_filter(RepoStat.project_path, extraction_prefixes))
+    .all()
+)
+
+def _build_path_boundary_filter(column, paths: list[str]):
+    return or_(*[or_(column == path, column.like(f"{path}/%")) for path in paths])
+```
+
+## Representation Preferences
+
+### Showcase Project Selection
+
+Limit portfolio to specific showcase projects:
+
+```bash
+POST /portfolio/{portfolio_id}/edit
+Content-Type: application/json
+
+{
+  "showcase_project_ids": [1, 3, 5]
+}
+```
+
+Projects are matched by ID or name:
+
+```python
+def _project_tokens(project: RepoStat) -> set[str]:
+    return {str(project.id), project.project_name}
+
+showcase = set(_normalize_tokens(prefs.showcase_project_ids))
+matching = [p for p in ordered if _project_tokens(p) & showcase]
+```
+
+### Custom Project Ordering
+
+Override default ranking with manual order:
+
+```bash
+POST /portfolio/{portfolio_id}/edit
+Content-Type: application/json
+
+{
+  "project_order": ["my-app", "side-project", "open-source-contrib"]
+}
+```
+
+Ordering logic:
+
+```python
+order_index = {token: idx for idx, token in enumerate(order_tokens)}
+
+return sorted(
+    ordered,
+    key=lambda project: (
+        min(
+            (
+                order_index[token]
+                for token in _project_tokens(project)
+                if token in order_index
+            ),
+            default=len(order_index) + 1,
+        ),
+        _project_sort_key(project),
+    ),
+)
+```
+
+### Skill Highlighting and Filtering
+
+```bash
+POST /portfolio/{portfolio_id}/edit
+Content-Type: application/json
+
+{
+  "highlighted_skills": ["FastAPI", "React", "PostgreSQL"],
+  "hidden_skills": ["Basic HTML/CSS"]
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Skill Extraction" icon="brain" href="/features/skill-extraction">
+    Learn how skills are detected and tracked across projects
+  </Card>
+  <Card title="Evidence Tracking" icon="file-check" href="/features/evidence-tracking">
+    Understand how project evidence is extracted and stored
+  </Card>
+  <Card title="Resume Generation" icon="file-lines" href="/features/resume-generation">
+    Generate resume items from portfolio analysis
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/portfolio">
+    Complete API documentation for portfolio endpoints
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+### Portfolio Not Found
+
+```json
+{
+  "status_code": 404,
+  "detail": "Portfolio not found."
+}
+```
+
+### No Analyzed Projects
+
+```json
+{
+  "status_code": 400,
+  "detail": "Portfolio has no analyzed ZIPs yet. Run /analyze/{zip_id} for uploaded ZIPs first."
+}
+```
+
+### Preference Validation Errors
+
+Errors are non-blocking and returned in the response:
+
+```json
+{
+  "success": true,
+  "errors": [
+    "No projects matched showcase_project_ids; returning all projects.",
+    "project_order references unknown projects: ['deleted-project']"
+  ]
+}
+```

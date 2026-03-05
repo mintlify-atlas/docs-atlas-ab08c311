@@ -1,97 +1,257 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Artifact Miner Documentation"
+description: "Transform your project repositories into resume-ready insights"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-gradient-to-br dark:from-[#0f1117] dark:via-[#1a1d27] dark:to-[#0f1117] bg-gradient-to-br from-white via-gray-50 to-white py-20">
+  <div className="max-w-6xl mx-auto px-6">
+    <div className="grid lg:grid-cols-12 gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-5xl lg:text-6xl font-bold dark:text-white text-gray-900 mb-6">
+          Turn Your Code Into Career Insights
+        </h1>
+        <p className="text-xl dark:text-gray-400 text-gray-600 max-w-2xl mb-8">
+          Artifact Miner analyzes your Git repositories to extract skills, contributions, and project intelligence—automatically generating professional resumes and portfolios for CS students and career advisors.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg font-semibold text-white transition-all duration-200 no-underline"
+            style={{ backgroundColor: '#ef7025' }}
+            onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            Get Started
+            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a 
+            href="/api/overview" 
+            className="inline-flex items-center px-6 py-3 rounded-lg font-semibold dark:text-white text-gray-900 dark:bg-white/10 bg-gray-100 dark:border-white/30 border border-gray-200 transition-all duration-200 no-underline dark:hover:bg-white/20 hover:bg-gray-200"
+          >
+            Explore API
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="relative dark:bg-[#1a1d27] bg-white dark:border-[#27272a] border-gray-200 border rounded-2xl p-6 shadow-2xl">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          </div>
+          <pre className="text-sm dark:text-gray-300 text-gray-700">
+{`$ artifactminer -i portfolio.zip \\
+  -o resume.json
 
-Get your documentation site up and running in minutes.
+✓ Analyzing repositories...
+✓ Extracting skills...
+✓ Generating resume...
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+📊 Found 12 projects
+🎯 Identified 24 skills
+📄 Resume generated`}
+          </pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-## Make it yours
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Quick Start</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Get up and running with Artifact Miner in minutes</p>
+  
+  <Steps>
+    <Step title="Install Artifact Miner">
+      Clone the repository and install dependencies using uv:
+      
+      ```bash
+      git clone https://github.com/COSC-499-W2025/capstone-project-team-1.git
+      cd capstone-project-team-1
+      uv sync
+      ```
+      
+      Set up your environment and run database migrations:
+      
+      ```bash
+      cp .env.example .env
+      uv run alembic upgrade head
+      ```
+    </Step>
+    
+    <Step title="Choose Your Interface">
+      Artifact Miner offers three ways to analyze your projects:
+      
+      <CardGroup cols={3}>
+        <Card title="CLI" icon="terminal" href="/interfaces/cli">
+          Command-line interface for batch processing
+        </Card>
+        <Card title="TUI" icon="window" href="/interfaces/tui">
+          Interactive terminal interface
+        </Card>
+        <Card title="API" icon="code" href="/api/overview">
+          RESTful API for integration
+        </Card>
+      </CardGroup>
+    </Step>
+    
+    <Step title="Analyze Your Portfolio">
+      Upload a ZIP file containing your project repositories and let Artifact Miner extract insights:
+      
+      ```bash
+      uv run artifactminer -i projects.zip -o report.json -c no_llm
+      ```
+      
+      <Accordion title="Example output">
+        ```json
+        {
+          "exported_at": "2026-03-05T10:30:00Z",
+          "project_analyses": [
+            {
+              "project_name": "web-app",
+              "languages": ["Python", "JavaScript"],
+              "frameworks": ["React", "FastAPI"],
+              "health_score": 8.5
+            }
+          ],
+          "skills": [
+            {"skill": "Python", "category": "Languages", "first_used": "2024-01-15"},
+            {"skill": "React", "category": "Frameworks", "first_used": "2024-03-20"}
+          ]
+        }
+        ```
+      </Accordion>
+    </Step>
+    
+    <Step title="Generate Resume & Portfolio">
+      Export your analyzed data into professional resume and portfolio formats ready for career applications.
+      
+      <Note>
+        Artifact Miner automatically ranks projects by health score, activity timeline, and contribution depth to highlight your best work.
+      </Note>
+    </Step>
+  </Steps>
+</div>
 
-Design a docs site that looks great and empowers your users.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Core Features</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Everything you need to showcase your development journey</p>
+  
+  <CardGroup cols={2}>
+    <Card title="Portfolio Analysis" icon="folder-open" href="/features/portfolio-analysis">
+      Multi-ZIP portfolio analysis with automatic Git repository discovery and intelligent project ranking
+    </Card>
+    <Card title="Skill Extraction" icon="brain" href="/features/skill-extraction">
+      Automated skill detection from code patterns, dependencies, frameworks, and commit history
+    </Card>
+    <Card title="Resume Generation" icon="file-text" href="/features/resume-generation">
+      Generate professional resume items with customizable representation preferences
+    </Card>
+    <Card title="Evidence Tracking" icon="shield-check" href="/features/evidence-tracking">
+      Track project evidence including repository quality metrics, collaboration patterns, and health scores
+    </Card>
+  </CardGroup>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Explore by Topic</h2>
+  <p className="dark:text-gray-400 text-gray-600 mb-8">Learn how to use Artifact Miner effectively</p>
+  
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <a 
+      href="/guides/uploading-projects" 
+      className="group block rounded-2xl dark:border-[#27272a] border-gray-200 border overflow-hidden no-underline dark:hover:border-[#ef7025] hover:border-[#ef7025] transition-colors duration-200 dark:bg-[#1a1d27] bg-white"
+    >
+      <div className="h-32 dark:bg-[#242838] bg-gray-100 flex items-center justify-center">
+        <svg className="w-12 h-12 dark:text-gray-400 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      </div>
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Uploading Projects</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-3">Learn how to prepare and upload your project portfolios for analysis</p>
+        <span className="text-sm font-medium dark:text-gray-400 text-gray-600 dark:group-hover:text-[#ef7025] group-hover:text-[#ef7025] transition-colors">
+          Read guide →
+        </span>
+      </div>
+    </a>
+    
+    <a 
+      href="/guides/consent-privacy" 
+      className="group block rounded-2xl dark:border-[#27272a] border-gray-200 border overflow-hidden no-underline dark:hover:border-[#ef7025] hover:border-[#ef7025] transition-colors duration-200 dark:bg-[#1a1d27] bg-white"
+    >
+      <div className="h-32 dark:bg-[#242838] bg-gray-100 flex items-center justify-center">
+        <svg className="w-12 h-12 dark:text-gray-400 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      </div>
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Consent & Privacy</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-3">Understand consent levels and how your data is handled with optional LLM integration</p>
+        <span className="text-sm font-medium dark:text-gray-400 text-gray-600 dark:group-hover:text-[#ef7025] group-hover:text-[#ef7025] transition-colors">
+          Read guide →
+        </span>
+      </div>
+    </a>
+    
+    <a 
+      href="/guides/analyzing-repositories" 
+      className="group block rounded-2xl dark:border-[#27272a] border-gray-200 border overflow-hidden no-underline dark:hover:border-[#ef7025] hover:border-[#ef7025] transition-colors duration-200 dark:bg-[#1a1d27] bg-white"
+    >
+      <div className="h-32 dark:bg-[#242838] bg-gray-100 flex items-center justify-center">
+        <svg className="w-12 h-12 dark:text-gray-400 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </div>
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Analyzing Repositories</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-3">Deep dive into repository intelligence, skill signals, and contribution metrics</p>
+        <span className="text-sm font-medium dark:text-gray-400 text-gray-600 dark:group-hover:text-[#ef7025] group-hover:text-[#ef7025] transition-colors">
+          Read guide →
+        </span>
+      </div>
+    </a>
+    
+    <a 
+      href="/guides/generating-output" 
+      className="group block rounded-2xl dark:border-[#27272a] border-gray-200 border overflow-hidden no-underline dark:hover:border-[#ef7025] hover:border-[#ef7025] transition-colors duration-200 dark:bg-[#1a1d27] bg-white"
+    >
+      <div className="h-32 dark:bg-[#242838] bg-gray-100 flex items-center justify-center">
+        <svg className="w-12 h-12 dark:text-gray-400 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Generating Output</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-3">Export resumes, portfolios, and project summaries in multiple formats</p>
+        <span className="text-sm font-medium dark:text-gray-400 text-gray-600 dark:group-hover:text-[#ef7025] group-hover:text-[#ef7025] transition-colors">
+          Read guide →
+        </span>
+      </div>
+    </a>
+  </div>
+</div>
 
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-gradient-to-r dark:from-[#1a1d27] dark:to-[#242838] bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 dark:border-[#27272a] border-gray-200 border text-center">
+    <h2 className="text-2xl font-semibold dark:text-white text-gray-900 mb-3">Ready to analyze your portfolio?</h2>
+    <p className="dark:text-gray-400 text-gray-600 mb-6 max-w-2xl mx-auto">
+      Start extracting career insights from your code repositories today with Artifact Miner's powerful analysis platform.
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-6 py-3 rounded-lg font-semibold text-white transition-all duration-200 no-underline"
+      style={{ backgroundColor: '#ef7025' }}
+      onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+      onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+    >
+      Get Started Now
+      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+      </svg>
+    </a>
+  </div>
+</div>

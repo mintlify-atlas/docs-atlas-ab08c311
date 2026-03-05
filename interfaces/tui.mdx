@@ -1,0 +1,519 @@
+---
+title: Textual Terminal UI (TUI)
+description: Interactive terminal user interface built with Python Textual for visual project analysis
+---
+
+## Overview
+
+The Artifact Miner TUI provides a modern, interactive terminal interface built with [Python Textual](https://textual.textualize.io/). Navigate through screens using keyboard and mouse, with real-time feedback and visual progress indicators.
+
+## Installation
+
+The TUI is included with Artifact Miner:
+
+```bash
+pip install artifactminer
+# or
+uv pip install artifactminer
+```
+
+## Launching the TUI
+
+Start the Textual interface:
+
+```bash
+python -m artifactminer.tui.app
+# or
+uv run python -m artifactminer.tui.app
+```
+
+## Application Flow
+
+The TUI guides you through a multi-screen workflow:
+
+<Steps>
+  <Step title="Welcome Screen">
+    Initial landing page with branding and call-to-action.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║                                                    ║
+    ║              ARTIFACT-MINER                        ║
+    ║      Welcome to the artifact staging tool.        ║
+    ║                                                    ║
+    ║              [ Start Mining ]                      ║
+    ║                                                    ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Actions:**
+    - Click **Start Mining** button to begin
+    - Press `q` to quit
+  </Step>
+  
+  <Step title="Consent Screen">
+    Choose data processing consent level with detailed explanation.
+    
+    The screen displays:
+    - Full consent agreement text in scrollable container
+    - What data is collected (metadata, file contents, timestamps)
+    - Your data rights and permissions
+    - LLM processing options
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║         Data Usage Consent                         ║
+    ║────────────────────────────────────────────────────║
+    ║  # Consent Required                                ║
+    ║                                                    ║
+    ║  By using Artifact Miner, you consent to the      ║
+    ║  collection and analysis of artifacts from the    ║
+    ║  provided .zip file.                              ║
+    ║                                                    ║
+    ║  ## What We Collect                               ║
+    ║  - Artifact metadata (file names, paths, types)   ║
+    ║  - File contents for analysis purposes            ║
+    ║  - Timestamps of when artifacts were scanned      ║
+    ║                                                    ║
+    ║  ## LLM Processing Options                        ║
+    ║  - Consent with LLM: External LLM services used   ║
+    ║  - Consent without LLM: Local processing only     ║
+    ║────────────────────────────────────────────────────║
+    ║  [ Consent with LLM ]  [ Consent without LLM ]    ║
+    ║                                                    ║
+    ║  Select a consent option to continue.             ║
+    ║  [ Back ]                    [ Continue ]         ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Workflow:**
+    1. Click **Consent with LLM** (green) or **Consent without LLM** (blue)
+    2. Selection is highlighted and status updates
+    3. Click **Continue** to proceed
+    4. Consent is saved to backend via API call
+    
+    **Status Messages:**
+    - `"Consent with LLM selected."` - Full consent chosen
+    - `"Consent without LLM selected."` - No external LLM processing
+    - `"Saving consent choice..."` - API request in progress
+    - `"Consent saved. Loading preferences..."` - Success
+    - `"Cannot connect to the backend server."` - Connection error (red)
+  </Step>
+  
+  <Step title="User Config Screen">
+    Enter user information (email address) for personalization.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║     Enter your email address:                      ║
+    ║  ┌──────────────────────────────────────────────┐  ║
+    ║  │ student@university.edu                       │  ║
+    ║  └──────────────────────────────────────────────┘  ║
+    ║                                                    ║
+    ║  [ Back ]                    [ Continue ]         ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Actions:**
+    - Type your email address in the input field
+    - Click **Continue** to proceed
+    - Email is stored for tracking and resume generation
+  </Step>
+  
+  <Step title="Upload Screen">
+    Select and upload a ZIP file containing your projects.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║  Enter a path to a .zip file.                      ║
+    ║  ┌──────────────────────────────────────────────┐  ║
+    ║  │ ~/Desktop/projects.zip                       │  ║
+    ║  └──────────────────────────────────────────────┘  ║
+    ║          [ Browse ]  [ Upload ]                    ║
+    ║                                                    ║
+    ║  Waiting for a file...                            ║
+    ║  [ Back ]                                          ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Three ways to select a file:**
+    
+    <Tabs>
+      <Tab title="Manual Entry">
+        Type the full path to your ZIP file:
+        ```
+        ~/Desktop/my-projects.zip
+        /home/student/portfolio.zip
+        ```
+      </Tab>
+      
+      <Tab title="Browse Button">
+        Click **Browse** to open an interactive file browser:
+        - Navigate directories using arrow keys or mouse
+        - Select `.zip` files
+        - Double-click or press Enter to select
+      </Tab>
+      
+      <Tab title="Drag & Drop">
+        Some terminals support dragging files to populate the path.
+      </Tab>
+    </Tabs>
+    
+    **Status Messages:**
+    - `"Waiting for a file..."` - Initial state
+    - `"Please enter a path."` - Empty input submitted
+    - `"File not found: [path]"` - Path doesn't exist
+    - `"Need a .zip file."` - Wrong file extension
+    - `"Uploading and fetching contents..."` - Upload in progress
+    - `"No contents found in archive."` - Empty ZIP file
+    
+    **After successful upload:**
+    - ZIP is uploaded to backend
+    - Contents are extracted and scanned
+    - Transitions to Directory Selection screen
+  </Step>
+  
+  <Step title="Directory Selection Screen">
+    Choose which directories/repositories to analyze from the ZIP archive.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║         Contents of ZIP File                       ║
+    ║────────────────────────────────────────────────────║
+    ║  ┌────────────────────────────────────────────┐    ║
+    ║  │ ☑ portfolio-website                        │    ║
+    ║  │ ☑ ml-classifier                            │    ║
+    ║  │ ☐ react-dashboard                          │    ║
+    ║  │ ☑ python-automation                        │    ║
+    ║  │ ☐ discord-bot                              │    ║
+    ║  └────────────────────────────────────────────┘    ║
+    ║                                                    ║
+    ║  Selected 3 files                                  ║
+    ║  [ Back ]              [ Select Files ]            ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Features:**
+    - Scrollable list of all directories in ZIP
+    - Click checkboxes to toggle selection
+    - Selection count updates in real-time
+    - **Select Files** button disabled until at least one item selected
+    - Filters out macOS metadata (`__MACOSX/`, `._*` files)
+    
+    **Keyboard Navigation:**
+    - `↑`/`↓` - Move between items
+    - `Space` - Toggle checkbox
+    - `Tab` - Switch between list and buttons
+    - `Enter` - Activate focused button
+  </Step>
+  
+  <Step title="Analyzing Screen">
+    Real-time progress display during analysis.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║         Analyzing Projects...                      ║
+    ║────────────────────────────────────────────────────║
+    ║  ⠋ Processing repositories...                      ║
+    ║                                                    ║
+    ║  ████████████████░░░░░░░░░░░  60%                 ║
+    ║                                                    ║
+    ║  Current: react-dashboard (2/3)                   ║
+    ║                                                    ║
+    ║  Completed:                                        ║
+    ║    ✓ portfolio-website                            ║
+    ║    ✓ ml-classifier                                │
+    ║    ⟳ react-dashboard (in progress)               ║
+    ║────────────────────────────────────────────────────║
+    ║  Extracting git history...                        ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Display Elements:**
+    - Animated spinner for ongoing activity
+    - Progress bar showing percentage complete
+    - Current repository being analyzed
+    - List of completed repositories with checkmarks
+    - Status messages for current operation
+    
+    **Automatically transitions to Resume Screen when complete**
+  </Step>
+  
+  <Step title="Resume & Summaries Screen">
+    View and export generated resume items and AI summaries.
+    
+    ```
+    ╔════════════════════════════════════════════════════╗
+    ║       Resume & Summaries                           ║
+    ║────────────────────────────────────────────────────║
+    ║  ┌────────────────────────────────────────────┐    ║
+    ║  │ 📁 portfolio-website                       │    ║
+    ║  │ ─────────────────────────────────────      │    ║
+    ║  │ • Responsive Portfolio Development         │    ║
+    ║  │   Developed responsive portfolio website  │    ║
+    ║  │   using React and Next.js with SSR...     │    ║
+    ║  │                                            │    ║
+    ║  │ • Performance Optimization                 │    ║
+    ║  │   Optimized bundle size by 40% using...   │    ║
+    ║  │                                            │    ║
+    ║  │ ┌──────────────────────────────────────┐  │    ║
+    ║  │ │ 💡 AI Summary:                       │  │    ║
+    ║  │ │ A modern portfolio website built... │  │    ║
+    ║  │ └──────────────────────────────────────┘  │    ║
+    ║  │                                            │    ║
+    ║  │ 📁 ml-classifier                           │    ║
+    ║  │ ─────────────────────────────────────      │    ║
+    ║  │ • Machine Learning Model Development       │    ║
+    ║  └────────────────────────────────────────────┘    ║
+    ║  Loaded 12 items.                                  ║
+    ║  [ Export JSON ]  [ Export Text ]                  ║
+    ║  [ Back ]  [ Projects ]  [ Skills ]                ║
+    ╚════════════════════════════════════════════════════╝
+    ```
+    
+    **Content Display:**
+    - **Resume items grouped by project** with folder icons
+    - **Item titles** in bold
+    - **Content preview** (first 200 characters, dimmed text)
+    - **AI summaries** in highlighted boxes with lightbulb icon (when available)
+    - Scrollable content area for long lists
+    
+    **Export Options:**
+    
+    <Tabs>
+      <Tab title="Export JSON">
+        Click **Export JSON** to save structured data:
+        - Generates timestamped file: `resume_export_YYYYMMDD_HHMMSS.json`
+        - Includes all resume items and summaries
+        - Saved to current directory
+        - Shows notification with filename
+      </Tab>
+      
+      <Tab title="Export Text">
+        Click **Export Text** to save human-readable report:
+        - Generates timestamped file: `resume_export_YYYYMMDD_HHMMSS.txt`
+        - Formatted with sections and bullet points
+        - Saved to current directory
+        - Shows notification with filename
+      </Tab>
+    </Tabs>
+    
+    **Navigation:**
+    - **Back** - Return to previous screen
+    - **Projects** - View project list (coming soon)
+    - **Skills** - View skills timeline (coming soon)
+  </Step>
+</Steps>
+
+## File Browser
+
+When you click **Browse** on the Upload screen, an interactive file browser opens:
+
+```
+╔════════════════════════════════════════════════════╗
+║         Select a ZIP File                          ║
+║────────────────────────────────────────────────────║
+║  📁 /home/student                                   ║
+║  ┌────────────────────────────────────────────┐    ║
+║  │ 📁 ../                                     │    ║
+║  │ 📁 Desktop/                                │    ║
+║  │ 📁 Documents/                              │    ║
+║  │ 📁 Downloads/                              │    ║
+║  │ 📄 projects.zip                            │    ║
+║  │ 📄 portfolio.zip                           │    ║
+║  └────────────────────────────────────────────┘    ║
+║                                                    ║
+║  [ Cancel ]                   [ Select ]           ║
+╚════════════════════════════════════════════════════╝
+```
+
+**Features:**
+- Directory tree navigation
+- Only shows `.zip` files and directories
+- Click `../` to go up one level
+- Double-click directory to enter
+- Single-click file to select
+- Current path shown at top
+
+## Keyboard Shortcuts
+
+Global shortcuts available throughout the TUI:
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit application |
+| `Ctrl+C` | Force quit |
+| `Tab` | Switch focus between UI elements |
+| `Shift+Tab` | Switch focus backwards |
+| `Enter` | Activate focused button/selection |
+| `Esc` | Go back / Cancel |
+
+**Screen-specific shortcuts:**
+
+| Screen | Key | Action |
+|--------|-----|--------|
+| Directory Selection | `↑`/`↓` | Navigate list |
+| Directory Selection | `Space` | Toggle checkbox |
+| Resume Screen | `Page Up`/`Page Down` | Scroll content |
+| File Browser | `Enter` | Open directory / Select file |
+
+## API Integration
+
+The TUI communicates with the Artifact Miner backend API at `http://127.0.0.1:8000`:
+
+<Accordion title="Consent Endpoints">
+  **GET /consent** - Retrieve current consent state
+  ```json
+  {
+    "consent_level": "no_llm",
+    "accepted_at": "2024-03-15T10:30:00Z"
+  }
+  ```
+  
+  **PUT /consent** - Update consent level
+  ```json
+  {
+    "consent_level": "full"
+  }
+  ```
+</Accordion>
+
+<Accordion title="Upload Endpoints">
+  **POST /upload** - Upload ZIP file
+  - Multipart form data with file
+  - Returns `zip_id` for tracking
+  
+  **GET /zip/{zip_id}/directories** - List ZIP contents
+  ```json
+  {
+    "directories": [
+      "portfolio-website/",
+      "ml-classifier/",
+      "react-dashboard/"
+    ]
+  }
+  ```
+</Accordion>
+
+<Accordion title="Analysis Endpoints">
+  **POST /analyze/{zip_id}** - Start analysis
+  - Optionally specify directories to analyze
+  - Returns analysis results
+  
+  **GET /resume_items** - Fetch resume items
+  
+  **GET /summaries** - Fetch AI summaries
+</Accordion>
+
+## Error Handling
+
+The TUI provides user-friendly error messages:
+
+<Tabs>
+  <Tab title="Connection Errors">
+    ```
+    ╔════════════════════════════════════════════╗
+    ║  ⚠ Cannot connect to API server           ║
+    ║                                            ║
+    ║  Make sure the backend is running:         ║
+    ║  $ python -m artifactminer.api.main        ║
+    ╚════════════════════════════════════════════╝
+    ```
+    
+    **Notification**: "Cannot connect to the backend server. Is it running?"
+  </Tab>
+  
+  <Tab title="File Errors">
+    ```
+    File not found: /path/to/missing.zip
+    ```
+    
+    ```
+    Need a .zip file.
+    ```
+    
+    ```
+    No contents found in archive.
+    ```
+  </Tab>
+  
+  <Tab title="API Errors">
+    ```
+    ╔════════════════════════════════════════════╗
+    ║  ⚠ Server error: 500                       ║
+    ║                                            ║
+    ║  HTTP 500 error.                           ║
+    ╚════════════════════════════════════════════╝
+    ```
+  </Tab>
+</Tabs>
+
+## Styling and Themes
+
+The TUI uses Textual's theming system with custom CSS:
+
+- **Primary color**: Blue for main actions
+- **Success color**: Green for confirmations
+- **Warning color**: Yellow for cautions
+- **Error color**: Red for errors
+- **Surface**: Rounded borders for containers
+- **Panel**: Elevated card-like components
+- **Boost**: Subtle background highlights
+
+## Running the Backend
+
+The TUI requires the Artifact Miner API to be running:
+
+```bash
+# Start the backend in a separate terminal
+python -m artifactminer.api.main
+
+# Or with uvicorn
+uvicorn artifactminer.api.main:app --reload
+
+# Then launch the TUI
+python -m artifactminer.tui.app
+```
+
+**Backend runs on**: `http://127.0.0.1:8000`
+
+## Advantages Over CLI
+
+<CardGroup cols={2}>
+  <Card title="Visual Feedback" icon="eye">
+    See real-time progress, completion status, and results in formatted displays
+  </Card>
+  <Card title="Interactive Selection" icon="hand-pointer">
+    Click checkboxes to select specific projects instead of typing numbers
+  </Card>
+  <Card title="Error Prevention" icon="shield">
+    UI validates inputs and disables invalid actions before they occur
+  </Card>
+  <Card title="Guided Workflow" icon="route">
+    Screen-by-screen flow prevents missing steps or incorrect configurations
+  </Card>
+</CardGroup>
+
+## Limitations
+
+- Requires API backend to be running
+- Not suitable for scripting or automation
+- Limited to terminal window size
+- Mouse support varies by terminal emulator
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Interface" icon="terminal" href="/interfaces/cli">
+    Learn about the command-line interface for automation
+  </Card>
+  <Card title="React Client" icon="react" href="/interfaces/react-client">
+    Try the experimental OpenTUI React client
+  </Card>
+  <Card title="API Documentation" icon="code" href="/api/overview">
+    Explore the backend API endpoints
+  </Card>
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Set up a development environment
+  </Card>
+</CardGroup>

@@ -1,0 +1,251 @@
+---
+title: Uploading Projects
+description: Upload ZIP files containing your project directories for analysis
+---
+
+## Overview
+
+Artifact Miner accepts ZIP file uploads containing one or more project directories. Once uploaded, the system extracts and catalogs the directory structure, allowing you to select specific directories for repository analysis.
+
+## Preparing Your ZIP File
+
+Before uploading, organize your projects into a ZIP archive:
+
+<Steps>
+  <Step title="Gather your projects">
+    Collect all project directories you want to analyze. Each project can be:
+    - A Git repository (recommended for full analysis)
+    - A standalone project directory
+    - A collection of coursework or assignments
+  </Step>
+  
+  <Step title="Create the ZIP archive">
+    Compress your projects into a single ZIP file:
+    
+    ```bash
+    # Example: Create a ZIP from multiple project folders
+    zip -r my-projects.zip project1/ project2/ project3/
+    ```
+    
+    Your ZIP structure might look like:
+    ```
+    my-projects.zip
+    ├── web-app/
+    │   ├── .git/
+    │   ├── src/
+    │   └── package.json
+    ├── data-analysis/
+    │   ├── .git/
+    │   └── notebooks/
+    └── mobile-app/
+        ├── .git/
+        └── app/
+    ```
+  </Step>
+  
+  <Step title="Verify Git repositories">
+    Ensure your important projects contain `.git` directories for full repository intelligence:
+    
+    ```bash
+    # Check if a directory is a Git repository
+    cd project-directory
+    git status
+    ```
+    
+    <Note>
+      Projects without Git history can still be analyzed for file types and structure, but will miss commit history, collaboration metrics, and user contribution statistics.
+    </Note>
+  </Step>
+</Steps>
+
+## Uploading via API
+
+Upload your ZIP file using the `/zip/upload` endpoint:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/zip/upload" \
+  -F "file=@my-projects.zip"
+```
+
+**Response:**
+
+```json
+{
+  "zip_id": 1,
+  "filename": "my-projects.zip",
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+<Note>
+  The `portfolio_id` is automatically generated and links all ZIPs in the same portfolio together. Save this ID for multi-ZIP workflows.
+</Note>
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `zip_id` | integer | Unique database identifier for this upload |
+| `filename` | string | Original filename of the uploaded ZIP |
+| `portfolio_id` | string | UUID linking this ZIP to a portfolio |
+
+## Directory Selection
+
+After upload, retrieve the directory listing to select which folders to analyze:
+
+<Steps>
+  <Step title="Get directory structure">
+    Request the extracted directory tree:
+    
+    ```bash
+    curl "http://127.0.0.1:8000/zip/1/directories"
+    ```
+    
+    **Response:**
+    
+    ```json
+    {
+      "zip_id": 1,
+      "filename": "my-projects.zip",
+      "directories": [
+        "web-app",
+        "data-analysis",
+        "mobile-app"
+      ],
+      "cleanedfilespath": [
+        ".extracted/1/web-app/src/index.js",
+        ".extracted/1/web-app/package.json",
+        ".extracted/1/data-analysis/notebook.ipynb"
+      ]
+    }
+    ```
+  </Step>
+  
+  <Step title="Choose directories for analysis">
+    Select which top-level directories contain projects you want to analyze. You'll pass these to the analyze endpoint:
+    
+    ```json
+    {
+      "directories": ["web-app", "mobile-app"]
+    }
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  If you don't specify directories, the analysis will scan the entire extracted ZIP for Git repositories.
+</Tip>
+
+## Multi-ZIP Portfolio Workflow
+
+For large portfolios, upload multiple ZIP files incrementally to the same portfolio:
+
+<Steps>
+  <Step title="Upload first ZIP">
+    Upload your first project collection:
+    
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/zip/upload" \
+      -F "file=@semester-1-projects.zip"
+    ```
+    
+    Save the returned `portfolio_id`.
+  </Step>
+  
+  <Step title="Add more ZIPs to the same portfolio">
+    Upload additional ZIPs with the same `portfolio_id`:
+    
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/zip/upload?portfolio_id=550e8400-e29b-41d4-a716-446655440000" \
+      -F "file=@semester-2-projects.zip"
+    ```
+  </Step>
+  
+  <Step title="View all ZIPs in portfolio">
+    Retrieve all uploads linked to your portfolio:
+    
+    ```bash
+    curl "http://127.0.0.1:8000/zip/portfolios/550e8400-e29b-41d4-a716-446655440000"
+    ```
+    
+    **Response:**
+    
+    ```json
+    {
+      "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+      "zips": [
+        {
+          "zip_id": 1,
+          "filename": "semester-1-projects.zip",
+          "uploaded_at": "2026-03-05T10:30:00"
+        },
+        {
+          "zip_id": 2,
+          "filename": "semester-2-projects.zip",
+          "uploaded_at": "2026-03-05T10:35:00"
+        }
+      ]
+    }
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Each ZIP in a portfolio is analyzed separately. When generating the final portfolio output, projects from all ZIPs are combined and deduplicated by repository name.
+</Warning>
+
+## Extraction and Storage
+
+Uploaded ZIPs are stored and extracted as follows:
+
+- **Upload storage**: `./uploads/YYYYMMDD_HHMMSS_filename.zip`
+- **Extraction path**: `./.extracted/{zip_id}/`
+- **Thumbnails**: `./uploads/thumbnails/` (for project images)
+
+The extraction happens automatically when you request the directory listing or start analysis.
+
+## File Size and Format Requirements
+
+<Note>
+  - **Format**: Only `.zip` files are accepted
+  - **Recommended size**: Under 500 MB for optimal performance
+  - **Git repositories**: Must include `.git` directory for full analysis
+</Note>
+
+## Next Steps
+
+After uploading and selecting directories:
+
+1. **[Analyze repositories](/guides/analyzing-repositories)** - Extract repository intelligence and user contributions
+2. **[Set consent preferences](/guides/consent-privacy)** - Configure data handling and LLM integration
+3. **[Generate outputs](/guides/generating-output)** - Create resumes and portfolio artifacts
+
+## API Reference
+
+### POST /zip/upload
+
+Uploads a ZIP file and registers it in the database.
+
+**Parameters:**
+- `file` (form-data, required): ZIP file to upload
+- `portfolio_id` (query, optional): UUID to link this ZIP to an existing portfolio
+
+**Returns:** `ZipUploadResponse` with `zip_id`, `filename`, and `portfolio_id`
+
+### GET /zip/{zip_id}/directories
+
+Retrieves the directory structure of an extracted ZIP.
+
+**Parameters:**
+- `zip_id` (path, required): Database ID of the uploaded ZIP
+
+**Returns:** `DirectoriesResponse` with directory list and file paths
+
+### GET /zip/portfolios/{portfolio_id}
+
+Lists all ZIPs belonging to a portfolio.
+
+**Parameters:**
+- `portfolio_id` (path, required): Portfolio UUID
+
+**Returns:** `PortfolioResponse` with array of ZIP items

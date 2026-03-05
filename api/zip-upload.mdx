@@ -1,0 +1,221 @@
+---
+title: 'ZIP Upload'
+description: 'Upload and manage project ZIP files'
+---
+
+## Overview
+
+The ZIP upload API lets you upload compressed project archives for analysis. Each ZIP is linked to a portfolio and can contain multiple git repositories.
+
+## Upload ZIP File
+
+Upload a ZIP file containing your projects.
+
+```bash POST /zip/upload
+curl -X POST http://127.0.0.1:8000/zip/upload \
+  -F "file=@projects.zip" \
+  -F "portfolio_id=550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Request Parameters:**
+
+<ParamField body="file" type="file" required>
+  ZIP file to upload. Must have `.zip` extension
+</ParamField>
+
+<ParamField query="portfolio_id" type="string" optional>
+  Optional portfolio UUID to link this ZIP to an existing portfolio. If not provided, a new portfolio UUID is generated
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "zip_id": 1,
+  "filename": "projects.zip",
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+<ResponseField name="zip_id" type="integer">
+  Unique identifier for the uploaded ZIP file
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  Original filename of the uploaded ZIP
+</ResponseField>
+
+<ResponseField name="portfolio_id" type="string">
+  UUID linking this ZIP to a portfolio session
+</ResponseField>
+
+**Errors:**
+
+- `422` - File is not a ZIP file
+- `400` - ZIP file is corrupted (returned during analysis)
+
+## List ZIP Directories
+
+Get the directory structure of an uploaded ZIP file.
+
+```bash GET /zip/{zip_id}/directories
+curl http://127.0.0.1:8000/zip/1/directories
+```
+
+**Path Parameters:**
+
+<ParamField path="zip_id" type="integer" required>
+  ID of the uploaded ZIP file
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "zip_id": 1,
+  "filename": "projects.zip",
+  "directories": [
+    "my-app",
+    "api-server",
+    "frontend"
+  ],
+  "cleanedfilespath": [
+    "my-app/src/main.py",
+    "my-app/README.md",
+    "api-server/app.js",
+    "frontend/index.html"
+  ]
+}
+```
+
+<ResponseField name="zip_id" type="integer">
+  ID of the uploaded ZIP file
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  Original filename of the ZIP
+</ResponseField>
+
+<ResponseField name="directories" type="array">
+  List of top-level directories in the ZIP file
+</ResponseField>
+
+<ResponseField name="cleanedfilespath" type="array">
+  List of file paths from the ZIP directory after extraction
+</ResponseField>
+
+**Errors:**
+
+- `404` - ZIP file not found
+
+<Note>
+  This endpoint extracts the ZIP file to a persistent location (`./.extracted/{zip_id}/`) for analysis. The extraction is cached for subsequent requests.
+</Note>
+
+## Get Portfolio ZIPs
+
+Retrieve all ZIPs linked to a portfolio.
+
+```bash GET /zip/portfolios/{portfolio_id}
+curl http://127.0.0.1:8000/zip/portfolios/550e8400-e29b-41d4-a716-446655440000
+```
+
+**Path Parameters:**
+
+<ParamField path="portfolio_id" type="string" required>
+  UUID of the portfolio
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "zips": [
+    {
+      "zip_id": 1,
+      "filename": "projects-2024.zip",
+      "uploaded_at": "2024-03-01T10:00:00"
+    },
+    {
+      "zip_id": 2,
+      "filename": "more-projects.zip",
+      "uploaded_at": "2024-03-05T14:30:00"
+    }
+  ]
+}
+```
+
+<ResponseField name="portfolio_id" type="string">
+  UUID of the portfolio
+</ResponseField>
+
+<ResponseField name="zips" type="array">
+  All ZIPs linked to this portfolio
+  
+  <Expandable title="PortfolioZipItem properties">
+    <ResponseField name="zip_id" type="integer">
+      Unique identifier for the uploaded ZIP file
+    </ResponseField>
+    
+    <ResponseField name="filename" type="string">
+      Original filename of the uploaded ZIP
+    </ResponseField>
+    
+    <ResponseField name="uploaded_at" type="datetime">
+      Timestamp when the ZIP was uploaded
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Errors:**
+
+- `404` - Portfolio not found
+
+## Example: Multi-ZIP Portfolio
+
+You can upload multiple ZIPs to the same portfolio for incremental analysis:
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Upload first ZIP (generates portfolio_id)
+with open('projects-2024.zip', 'rb') as f:
+    response = requests.post(
+        f'{BASE_URL}/zip/upload',
+        files={'file': f}
+    )
+    result = response.json()
+    portfolio_id = result['portfolio_id']
+    print(f"Created portfolio: {portfolio_id}")
+
+# Upload second ZIP to same portfolio
+with open('more-projects.zip', 'rb') as f:
+    response = requests.post(
+        f'{BASE_URL}/zip/upload',
+        files={'file': f},
+        data={'portfolio_id': portfolio_id}
+    )
+    print(f"Added to portfolio: {response.json()['zip_id']}")
+
+# List all ZIPs in portfolio
+zips = requests.get(f'{BASE_URL}/zip/portfolios/{portfolio_id}').json()
+print(f"Portfolio has {len(zips['zips'])} ZIPs")
+```
+
+## Storage
+
+- Uploaded ZIPs are stored in `./uploads/` directory
+- Filenames are prefixed with timestamp to avoid collisions
+- Extraction happens to `./.extracted/{zip_id}/` for persistent access
+- Files are not automatically deleted (manual cleanup required)
+
+## Next Steps
+
+After uploading a ZIP:
+
+1. [Analyze the repositories](/api/analysis) with `POST /analyze/{zip_id}`
+2. [View discovered projects](/api/projects) with `GET /projects`
+3. [Generate portfolio content](/api/portfolio) with `POST /portfolio/generate`

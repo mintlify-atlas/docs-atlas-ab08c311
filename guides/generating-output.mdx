@@ -1,0 +1,556 @@
+---
+title: Generating Output
+description: Create resume items, assemble portfolios, and retrieve timeline and chronology data
+---
+
+## Overview
+
+After analysis, Artifact Miner provides multiple endpoints to retrieve and generate portfolio-ready outputs including resume items, project timelines, skill chronologies, and comprehensive portfolio packages.
+
+## Output Formats
+
+The system supports several output retrieval patterns:
+
+<CardGroup cols={2}>
+  <Card title="Resume Items" icon="file-lines">
+    Structured bullet points and descriptions extracted from your project evidence.
+  </Card>
+  
+  <Card title="Skills Chronology" icon="timeline">
+    Time-ordered skill acquisition history showing when you first demonstrated each skill.
+  </Card>
+  
+  <Card title="Project Timeline" icon="calendar">
+    Visual timeline of project activity windows with duration and recency metrics.
+  </Card>
+  
+  <Card title="Portfolio Package" icon="box">
+    Complete portfolio bundle with projects, summaries, skills, and evidence organized by representation preferences.
+  </Card>
+</CardGroup>
+
+## Resume Generation
+
+Generate resume items on-demand for selected projects:
+
+<Steps>
+  <Step title="List available projects">
+    Retrieve all analyzed projects:
+    
+    ```bash
+    curl "http://127.0.0.1:8000/projects"
+    ```
+    
+    **Response:**
+    
+    ```json
+    [
+      {
+        "id": 1,
+        "project_name": "web-app",
+        "project_path": ".extracted/1/web-app",
+        "languages": ["JavaScript", "TypeScript"],
+        "frameworks": ["React", "Express.js"],
+        "ranking_score": 87.5,
+        "health_score": 92.3
+      }
+    ]
+    ```
+  </Step>
+  
+  <Step title="Generate resume items">
+    Trigger resume generation for specific projects:
+    
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/resume/generate" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "project_ids": [1, 2, 3],
+        "regenerate": false
+      }'
+    ```
+    
+    **Response:**
+    
+    ```json
+    {
+      "success": true,
+      "items_generated": 24,
+      "resume_items": [],
+      "consent_level": "local-llm",
+      "errors": [],
+      "warnings": []
+    }
+    ```
+  </Step>
+  
+  <Step title="Retrieve generated evidence">
+    View project evidence items (which serve as resume content):
+    
+    ```bash
+    curl "http://127.0.0.1:8000/projects/1/evidence"
+    ```
+    
+    **Response:**
+    
+    ```json
+    [
+      {
+        "id": 1,
+        "type": "code_quality",
+        "content": "Implemented comprehensive TypeScript type system with 95% type coverage",
+        "source": "TypeScript Config Analysis",
+        "date": "2026-02-28",
+        "project_id": 1
+      },
+      {
+        "id": 2,
+        "type": "documentation",
+        "content": "Authored detailed API documentation and component storybook with 40+ examples",
+        "source": "Documentation Analysis",
+        "date": "2026-02-15",
+        "project_id": 1
+      }
+    ]
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  **Important:** Resume generation creates `ProjectEvidence` rows, not legacy `ResumeItem` rows. Evidence items are more structured and include type categorization.
+</Note>
+
+### Resume Generation Options
+
+**`regenerate` flag:**
+- `false` (default): Keeps existing evidence, adds new items
+- `true`: Deletes all existing evidence and resume items, regenerates from scratch
+
+```bash
+# Regenerate all evidence for a project
+curl -X POST "http://127.0.0.1:8000/resume/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_ids": [1],
+    "regenerate": true
+  }'
+```
+
+<Warning>
+  Using `regenerate: true` permanently deletes existing evidence. This cannot be undone.
+</Warning>
+
+## Evidence Types
+
+Project evidence is categorized by type:
+
+| Type | Description | Example |
+|------|-------------|----------|
+| `metric` | Quantitative achievements | "Reduced API response time by 40%" |
+| `testing` | Test coverage and quality | "Achieved 95% unit test coverage with Jest" |
+| `documentation` | Documentation contributions | "Wrote comprehensive API docs and guides" |
+| `code_quality` | Code quality improvements | "Refactored legacy codebase to TypeScript" |
+| `feedback` | User/team feedback | "Received 'Best Code Review' award from team" |
+| `award` | Recognition and awards | "Won Best Project at CS Showcase 2025" |
+| `evaluation` | Performance reviews | "Rated 5/5 for code quality by instructor" |
+| `custom` | Other achievements | Custom evidence not fitting above categories |
+
+### Adding Manual Evidence
+
+You can manually add evidence to projects:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/projects/1/evidence" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "award",
+    "content": "Winner of University Hackathon 2025 - Best Mobile App",
+    "source": "CS Department",
+    "date": "2025-11-15"
+  }'
+```
+
+## Skills Chronology
+
+Retrieve a time-ordered history of skill acquisition:
+
+```bash
+curl "http://127.0.0.1:8000/skills/chronology"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "date": "2024-01-15T00:00:00",
+    "skill": "JavaScript",
+    "project": "intro-web-dev",
+    "proficiency": 0.6,
+    "category": "Programming Language"
+  },
+  {
+    "date": "2024-09-01T00:00:00",
+    "skill": "React",
+    "project": "web-app",
+    "proficiency": 0.85,
+    "category": "Framework"
+  },
+  {
+    "date": "2025-01-15T00:00:00",
+    "skill": "TypeScript",
+    "project": "web-app",
+    "proficiency": 0.78,
+    "category": "Programming Language"
+  },
+  {
+    "date": "2025-09-01T00:00:00",
+    "skill": "React Native",
+    "project": "mobile-app",
+    "proficiency": 0.72,
+    "category": "Framework"
+  }
+]
+```
+
+<Tip>
+  Skills chronology is useful for showing progression in your resume or portfolio, demonstrating learning trajectory over time.
+</Tip>
+
+## Project Timeline
+
+Visualize project activity windows:
+
+```bash
+curl "http://127.0.0.1:8000/projects/timeline"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "project_name": "web-app",
+    "first_commit": "2025-01-15T09:00:00",
+    "last_commit": "2026-02-28T16:45:00",
+    "duration_days": 410,
+    "was_active": true
+  },
+  {
+    "id": 3,
+    "project_name": "data-analysis",
+    "first_commit": "2024-03-01T10:00:00",
+    "last_commit": "2024-05-15T14:30:00",
+    "duration_days": 75,
+    "was_active": false
+  }
+]
+```
+
+### Timeline Filters
+
+Filter the timeline by date range or activity status:
+
+```bash
+# Only show projects active in the last 6 months
+curl "http://127.0.0.1:8000/projects/timeline?active_only=true"
+
+# Filter by date range
+curl "http://127.0.0.1:8000/projects/timeline?start_date=2025-01-01&end_date=2025-12-31"
+```
+
+<Note>
+  **`was_active`** is `true` if the project had commits within the last 6 months.
+</Note>
+
+## Portfolio Assembly
+
+Generate a complete portfolio package combining all outputs:
+
+<Steps>
+  <Step title="Generate portfolio">
+    Create a portfolio for all projects in a portfolio_id:
+    
+    ```bash
+    curl -X POST "http://127.0.0.1:8000/portfolio/generate" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+      }'
+    ```
+    
+    **Response includes:**
+    - All projects with evidence, skills, and metadata
+    - AI-generated summaries (if consent permits)
+    - Skills chronology
+    - Resume items (legacy format)
+    - Representation preferences
+  </Step>
+  
+  <Step title="Customize representation">
+    Set project ordering and showcase preferences:
+    
+    ```bash
+    curl -X PUT "http://127.0.0.1:8000/views/550e8400-e29b-41d4-a716-446655440000/prefs" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "showcase_project_ids": [1, 2, 3],
+        "project_order": ["web-app", "mobile-app", "data-analysis"]
+      }'
+    ```
+  </Step>
+  
+  <Step title="Retrieve portfolio">
+    Get the assembled portfolio:
+    
+    ```bash
+    curl "http://127.0.0.1:8000/portfolio/550e8400-e29b-41d4-a716-446655440000"
+    ```
+  </Step>
+</Steps>
+
+### Portfolio Response Structure
+
+```json
+{
+  "success": true,
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
+  "consent_level": "local-llm",
+  "generated_at": "2026-03-05T15:30:00",
+  "preferences": {
+    "showcase_project_ids": [1, 2, 3],
+    "project_order": ["web-app", "mobile-app", "data-analysis"]
+  },
+  "projects": [
+    {
+      "id": 1,
+      "project_name": "web-app",
+      "project_path": ".extracted/1/web-app",
+      "languages": ["JavaScript", "TypeScript"],
+      "frameworks": ["React", "Express.js"],
+      "first_commit": "2025-01-15T09:00:00",
+      "last_commit": "2026-02-28T16:45:00",
+      "ranking_score": 87.5,
+      "health_score": 92.3,
+      "thumbnail_url": "/uploads/thumbnails/abc123.png",
+      "user_role": "Owner",
+      "evidence": [
+        {
+          "id": 1,
+          "type": "code_quality",
+          "content": "Implemented TypeScript with 95% coverage",
+          "source": "Static Analysis",
+          "date": "2026-02-28"
+        }
+      ]
+    }
+  ],
+  "resume_items": [],
+  "summaries": [
+    {
+      "id": 1,
+      "repo_path": ".extracted/1/web-app",
+      "user_email": "you@example.com",
+      "summary_text": "Led development of full-stack web application...",
+      "generated_at": "2026-03-05T14:00:00"
+    }
+  ],
+  "skills_chronology": [
+    {
+      "date": "2025-01-15T00:00:00",
+      "skill": "React",
+      "project": "web-app",
+      "proficiency": 0.85,
+      "category": "Framework"
+    }
+  ],
+  "errors": []
+}
+```
+
+## Representation Preferences
+
+Control how projects appear in your portfolio:
+
+### Showcase Selection
+
+Highlight specific projects:
+
+```json
+{
+  "showcase_project_ids": [1, 3, 5]
+}
+```
+
+Only these projects will appear in the portfolio output.
+
+### Project Ordering
+
+Custom sort order by project name or ID:
+
+```json
+{
+  "project_order": ["web-app", "mobile-app", "data-analysis"]
+}
+```
+
+<Note>
+  Without custom ordering, projects are sorted by ranking_score (highest first), then by last_commit (most recent first).
+</Note>
+
+## AI Summaries
+
+Retrieve AI-generated contribution summaries:
+
+```bash
+curl "http://127.0.0.1:8000/summaries?user_email=you@example.com"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "repo_path": ".extracted/1/web-app",
+    "user_email": "you@example.com",
+    "summary_text": "Designed and built a collaborative web platform with real-time synchronization. Implemented authentication, WebSocket integration, and responsive React components. Contributed 87% of commits over 14 months, serving as the primary developer and architect.",
+    "generated_at": "2026-03-05T14:00:00"
+  }
+]
+```
+
+<Warning>
+  AI summaries require `local-llm` or `cloud` consent level. With `local` or `none` consent, template-based summaries are generated instead.
+</Warning>
+
+## Editing Resume Items
+
+Modify generated resume items:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/resume/5/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Full-Stack Web Development",
+    "content": "Built and deployed a real-time collaboration platform serving 500+ users",
+    "category": "Software Development"
+  }'
+```
+
+<Tip>
+  All fields are optional. You can update just the title, just the content, or any combination.
+</Tip>
+
+## Output Format Examples
+
+### Text Format (CLI)
+
+The CLI tool can export to `.txt` format:
+
+```bash
+uv run artifactminer -i projects.zip -o report.txt -c local-llm -u you@example.com
+```
+
+**Output structure:**
+```
+=== ARTIFACT MINER ANALYSIS REPORT ===
+Generated: 2026-03-05 15:30:00
+User: you@example.com
+Consent Level: local-llm
+
+--- PROJECT: web-app ---
+Languages: JavaScript (45%), TypeScript (40%), CSS (15%)
+Frameworks: React, Express.js
+Commits: 147 / 168 (87.5%)
+Health Score: 92.3/100
+
+Evidence:
+- Implemented TypeScript with 95% type coverage
+- Achieved 90% unit test coverage with Jest
+- Authored comprehensive API documentation
+```
+
+### JSON Format (CLI)
+
+```bash
+uv run artifactminer -i projects.zip -o report.json -c local-llm -u you@example.com
+```
+
+Produces machine-readable JSON with all analysis results.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Customize Projects" icon="sliders">
+    Add thumbnails, set roles, and manually add evidence to enhance project presentation.
+  </Card>
+  
+  <Card title="Export Portfolio" icon="download">
+    Use the CLI to export complete portfolio packages in text or JSON format.
+  </Card>
+  
+  <Card title="Iterate Analysis" icon="rotate">
+    Re-run analysis with different consent levels or directory selections to refine results.
+  </Card>
+  
+  <Card title="View Documentation" icon="book">
+    Explore API reference documentation for advanced customization options.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+### POST /resume/generate
+
+Generate resume items for selected projects.
+
+**Request Body:**
+```json
+{
+  "project_ids": [1, 2, 3],
+  "regenerate": false
+}
+```
+
+**Returns:** Evidence count, success status, errors, and warnings
+
+### GET /skills/chronology
+
+Retrieve time-ordered skill acquisition history.
+
+**Returns:** Array of `SkillChronologyItem` with date, skill, project, and proficiency
+
+### GET /projects/timeline
+
+Get project activity timeline with filters.
+
+**Query Parameters:**
+- `start_date` (optional): Filter by start date
+- `end_date` (optional): Filter by end date
+- `active_only` (optional): Only show recently active projects
+
+**Returns:** Array of `ProjectTimelineItem` with activity windows
+
+### POST /portfolio/generate
+
+Assemble complete portfolio package.
+
+**Request Body:**
+```json
+{
+  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Returns:** `PortfolioGenerationResponse` with projects, summaries, skills, and evidence
+
+### GET /summaries
+
+Retrieve AI-generated contribution summaries.
+
+**Query Parameters:**
+- `user_email` (required): User email to filter summaries
+
+**Returns:** Array of `SummaryResponse` objects

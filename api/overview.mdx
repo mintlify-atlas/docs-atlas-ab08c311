@@ -1,0 +1,109 @@
+---
+title: 'API Overview'
+description: 'Introduction to the Artifact Miner API'
+---
+
+## Introduction
+
+Artifact Miner provides a REST API for analyzing git repositories, extracting skills, generating portfolio content, and managing project metadata. The API powers the Artifact Miner TUI and can be integrated into custom applications.
+
+## Base URL
+
+The API runs locally on:
+
+```
+http://127.0.0.1:8000
+```
+
+## Health Check
+
+Verify API connectivity with the health endpoint:
+
+<CodeGroup>
+```bash curl
+curl http://127.0.0.1:8000/health
+```
+
+```python Python
+import requests
+response = requests.get('http://127.0.0.1:8000/health')
+print(response.json())
+```
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-03-05T12:34:56.789000"
+}
+```
+
+<ResponseField name="status" type="string">
+  Overall service health indicator. One of: `ok`, `degraded`, `unhealthy`
+</ResponseField>
+
+<ResponseField name="timestamp" type="datetime">
+  UTC timestamp when the status was generated
+</ResponseField>
+
+## Interactive Documentation
+
+The API includes auto-generated interactive documentation:
+
+- **Swagger UI**: `http://127.0.0.1:8000/docs`
+- **ReDoc**: `http://127.0.0.1:8000/redoc`
+
+These interfaces let you explore endpoints and make test requests directly from your browser.
+
+## API Categories
+
+The API is organized into these functional groups:
+
+- **[Consent](/api/consent)** - Manage user consent for LLM usage
+- **[ZIP Upload](/api/zip-upload)** - Upload and manage project archives
+- **[Analysis](/api/analysis)** - Analyze repositories and extract insights
+- **[Projects](/api/projects)** - CRUD operations for projects
+- **[Skills](/api/skills)** - Retrieve skill data and chronology
+- **[Resume](/api/resume)** - Generate and manage resume items
+- **[Portfolio](/api/portfolio)** - Generate portfolio content
+
+## Request Format
+
+All endpoints accept JSON request bodies where applicable:
+
+```json
+{
+  "field": "value"
+}
+```
+
+Set the `Content-Type` header to `application/json` for POST/PUT requests.
+
+## Response Format
+
+All responses return JSON with appropriate HTTP status codes:
+
+- `200` - Success
+- `201` - Resource created
+- `400` - Bad request (validation error)
+- `404` - Resource not found
+- `422` - Unprocessable entity
+- `500` - Internal server error
+
+## Error Responses
+
+Errors return a detail message:
+
+```json
+{
+  "detail": "Error description"
+}
+```
+
+## Next Steps
+
+- [Configure consent settings](/api/consent)
+- [Upload your first ZIP file](/api/zip-upload)
+- [Analyze repositories](/api/analysis)

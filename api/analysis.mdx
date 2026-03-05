@@ -1,0 +1,345 @@
+---
+title: 'Analysis'
+description: 'Analyze repositories and extract insights'
+---
+
+## Overview
+
+The analysis API orchestrates the full artifact mining pipeline: ZIP extraction, repository discovery, skill extraction, and summary generation.
+
+## Analyze ZIP
+
+Master endpoint that analyzes all git repositories in an uploaded ZIP.
+
+```bash POST /analyze/{zip_id}
+curl -X POST http://127.0.0.1:8000/analyze/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "directories": ["my-app", "api-server"]
+  }'
+```
+
+**Path Parameters:**
+
+<ParamField path="zip_id" type="integer" required>
+  ID of the uploaded ZIP file to analyze
+</ParamField>
+
+**Request Body:**
+
+<ParamField body="directories" type="array" optional>
+  Optional list of directories to scope analysis. Paths are relative to the extracted ZIP root. If omitted, analyzes all discovered repositories
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "zip_id": 1,
+  "extraction_path": "./.extracted/1",
+  "repos_found": 3,
+  "repos_analyzed": [
+    {
+      "project_name": "my-app",
+      "project_path": "/path/to/my-app",
+      "frameworks": ["FastAPI", "React"],
+      "languages": ["Python", "JavaScript"],
+      "skills_count": 12,
+      "insights_count": 8,
+      "user_contribution_pct": 85.5,
+      "user_total_commits": 292,
+      "user_commit_frequency": 12.5,
+      "user_first_commit": "2023-01-15T10:00:00",
+      "user_last_commit": "2024-03-05T14:30:00",
+      "error": null
+    }
+  ],
+  "rankings": [
+    {
+      "name": "my-app",
+      "score": 85.5,
+      "total_commits": 342,
+      "user_commits": 292
+    }
+  ],
+  "summaries": [
+    {
+      "project_name": "my-app",
+      "summary": "Led development of a FastAPI backend with React frontend..."
+    }
+  ],
+  "consent_level": "local",
+  "user_email": "dev@example.com"
+}
+```
+
+<ResponseField name="zip_id" type="integer">
+  ID of the analyzed ZIP file
+</ResponseField>
+
+<ResponseField name="extraction_path" type="string">
+  Path where the ZIP was extracted
+</ResponseField>
+
+<ResponseField name="repos_found" type="integer">
+  Number of git repositories discovered
+</ResponseField>
+
+<ResponseField name="repos_analyzed" type="array">
+  Analysis results for each repository
+  
+  <Expandable title="RepoAnalysisResult properties">
+    <ResponseField name="project_name" type="string">
+      Name of the project
+    </ResponseField>
+    
+    <ResponseField name="project_path" type="string">
+      File system path to the project
+    </ResponseField>
+    
+    <ResponseField name="frameworks" type="array" optional>
+      Frameworks detected in the repository
+    </ResponseField>
+    
+    <ResponseField name="languages" type="array" optional>
+      Languages detected in the repository
+    </ResponseField>
+    
+    <ResponseField name="skills_count" type="integer">
+      Number of skills extracted
+    </ResponseField>
+    
+    <ResponseField name="insights_count" type="integer">
+      Number of insights generated
+    </ResponseField>
+    
+    <ResponseField name="user_contribution_pct" type="number" optional>
+      User's contribution percentage (0-100)
+    </ResponseField>
+    
+    <ResponseField name="user_total_commits" type="integer" optional>
+      Number of commits authored by the user
+    </ResponseField>
+    
+    <ResponseField name="user_commit_frequency" type="number" optional>
+      Average commits per week by the user
+    </ResponseField>
+    
+    <ResponseField name="user_first_commit" type="datetime" optional>
+      Timestamp of the user's first commit
+    </ResponseField>
+    
+    <ResponseField name="user_last_commit" type="datetime" optional>
+      Timestamp of the user's last commit
+    </ResponseField>
+    
+    <ResponseField name="error" type="string" optional>
+      Error message if analysis failed for this repo
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="rankings" type="array">
+  Projects ranked by user contribution
+  
+  <Expandable title="RankingResult properties">
+    <ResponseField name="name" type="string">
+      Project name
+    </ResponseField>
+    
+    <ResponseField name="score" type="number">
+      User contribution percentage (0-100)
+    </ResponseField>
+    
+    <ResponseField name="total_commits" type="integer">
+      Total commits in the project
+    </ResponseField>
+    
+    <ResponseField name="user_commits" type="integer">
+      Commits by the user
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="summaries" type="array">
+  AI-generated summaries for top projects
+  
+  <Expandable title="SummaryResult properties">
+    <ResponseField name="project_name" type="string">
+      Project name
+    </ResponseField>
+    
+    <ResponseField name="summary" type="string">
+      Generated summary text
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="consent_level" type="string">
+  Consent level used for analysis
+</ResponseField>
+
+<ResponseField name="user_email" type="string">
+  User email used for contribution tracking
+</ResponseField>
+
+### Analysis Pipeline
+
+The endpoint executes these steps:
+
+1. **Setup**: Retrieve ZIP path, user email, consent level
+2. **Extraction**: Extract ZIP to `./.extracted/{zip_id}/`
+3. **Discovery**: Find all git repositories (or in selected directories)
+4. **Analysis Loop** (for each repo):
+   - Extract repository statistics
+   - Calculate user contribution metrics
+   - Run deep skill analysis
+   - Generate insights as project evidence
+5. **Post-Processing**:
+   - Rank projects by user contribution
+   - Generate AI summaries (LLM if consented, template otherwise)
+
+**Errors:**
+
+- `404` - ZIP file not found
+- `400` - No git repositories found in ZIP
+- `400` - Invalid ZIP file format
+
+<Note>
+  Individual repository failures don't stop the pipeline. Errors are logged in the `repos_analyzed` array with an `error` field.
+</Note>
+
+## Analyze Single Repository
+
+Analyze a single git repository and store stats.
+
+```bash POST /repos/analyze
+curl -X POST "http://127.0.0.1:8000/repos/analyze?repo_path=/path/to/repo"
+```
+
+**Query Parameters:**
+
+<ParamField query="repo_path" type="string" required>
+  Path to the git repository to analyze
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "repo_stats": {
+    "project_name": "my-app",
+    "project_path": "/path/to/repo",
+    "Languages": ["Python", "JavaScript"],
+    "frameworks": ["FastAPI"]
+  },
+  "user_stats": {
+    "project_name": "my-app",
+    "user_email": "dev@example.com",
+    "total_commits": 292,
+    "userStatspercentages": 85.5
+  }
+}
+```
+
+**Errors:**
+
+- `400` - Invalid repository or user has no commits
+- `500` - Internal error during analysis
+
+## Get Crawler Files
+
+Get file paths and metadata from a ZIP's directory structure.
+
+```bash GET /crawler?zip_id=1
+curl http://127.0.0.1:8000/crawler?zip_id=1
+```
+
+**Query Parameters:**
+
+<ParamField query="zip_id" type="integer" required>
+  ID of the uploaded ZIP file
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "zip_id": 1,
+  "crawl_path_and_file_name_and_ext": [
+    {
+      "file_path": "my-app/src/main.py",
+      "file_name": "main",
+      "file_ext": ".py"
+    },
+    {
+      "file_path": "my-app/README.md",
+      "file_name": "README",
+      "file_ext": ".md"
+    }
+  ]
+}
+```
+
+## Get File Intelligence
+
+Extract file contents and intelligence from a ZIP.
+
+```bash GET /fileintelligence?zip_id=1
+curl http://127.0.0.1:8000/fileintelligence?zip_id=1
+```
+
+**Query Parameters:**
+
+<ParamField query="zip_id" type="integer" required>
+  ID of the uploaded ZIP file
+</ParamField>
+
+**Response:**
+
+```json
+[
+  "File intelligence response strings..."
+]
+```
+
+<Note>
+  The file intelligence endpoint uses AI to analyze file contents. Results depend on consent level and LLM availability.
+</Note>
+
+## Example: Complete Analysis Workflow
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Step 1: Upload ZIP
+with open('projects.zip', 'rb') as f:
+    upload = requests.post(
+        f'{BASE_URL}/zip/upload',
+        files={'file': f}
+    ).json()
+    zip_id = upload['zip_id']
+    print(f"Uploaded ZIP {zip_id}")
+
+# Step 2: Get directory listing (optional)
+dirs = requests.get(
+    f'{BASE_URL}/zip/{zip_id}/directories'
+).json()
+print(f"Found {len(dirs['directories'])} directories")
+
+# Step 3: Analyze all repositories
+analysis = requests.post(
+    f'{BASE_URL}/analyze/{zip_id}'
+).json()
+
+print(f"Analyzed {analysis['repos_found']} repositories")
+print(f"Top project: {analysis['rankings'][0]['name']}")
+print(f"Contribution: {analysis['rankings'][0]['score']}%")
+
+# Step 4: Check for errors
+errors = [r for r in analysis['repos_analyzed'] if r.get('error')]
+if errors:
+    print(f"Failed repos: {[r['project_name'] for r in errors]}")
+```

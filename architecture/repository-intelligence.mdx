@@ -1,0 +1,573 @@
+---
+title: Repository Intelligence
+description: Repository and user contribution analytics algorithms
+---
+
+The Repository Intelligence module analyzes Git repositories to extract both repository-level and user-level statistics. It provides deep insights into code composition, collaboration patterns, activity classification, and repository health.
+
+## Module Location
+
+`src/artifactminer/RepositoryIntelligence/`
+
+## Core Components
+
+### 1. Repository-Level Intelligence
+
+**File**: `repo_intelligence_main.py`
+
+#### `getRepoStats(repo_path)` 
+
+Extracts comprehensive statistics for a Git repository.
+
+**Location**: `src/artifactminer/RepositoryIntelligence/repo_intelligence_main.py:134-189`
+
+**Process**:
+
+1. **Git Repository Validation**
+   - Checks for `.git` directory using `isGitRepo()` (line 29-31)
+   - Raises `ValueError` if not a valid Git repository
+
+2. **Project Name Extraction**
+   - Uses directory name as project name (line 141)
+   - Example: `/path/to/my-project` → `"my-project"`
+
+3. **Language Detection**
+   - Traverses HEAD commit tree to analyze all files (line 145-158)
+   - Counts file extensions (`.py`, `.js`, `.java`, etc.)
+   - Calculates language percentages based on file counts
+   - Identifies primary language as most common extension
+   - Example output:
+     ```python
+     Languages: [".py", ".js", ".md"]
+     language_percentages: [65.0, 30.0, 5.0]
+     primary_language: ".py"
+     ```
+
+4. **Framework Detection**
+   - Calls `detect_frameworks()` from `framework_detector.py` (line 161)
+   - See [Framework Detection](#framework-detection) section below
+
+5. **Collaboration Detection**
+   - Checks for remote repositories (line 164)
+   - Counts unique author emails across all commits (line 166-167)
+   - Repository is collaborative if:
+     - Has remote repositories, OR
+     - Has more than one unique author email
+   - Example:
+     ```python
+     authors = {"alice@example.com", "bob@example.com"}
+     is_collaborative = True
+     ```
+
+6. **Commit Timeline**
+   - Iterates through all commits (line 170)
+   - Extracts first commit (oldest) and last commit (newest) dates (line 171-172)
+   - Counts total commits
+
+7. **Health Score Calculation**
+   - Calls `calculateRepoHealth()` (line 175)
+   - See [Health Scoring](#health-scoring) section below
+
+**Returns**: `RepoStats` dataclass with:
+- `project_name`: Repository name
+- `project_path`: Filesystem path
+- `is_collaborative`: Boolean
+- `Languages`: List of file extensions
+- `language_percentages`: List of percentages
+- `primary_language`: Most common extension
+- `first_commit`: Earliest commit datetime
+- `last_commit`: Most recent commit datetime
+- `total_commits`: Total commit count
+- `frameworks`: List of detected frameworks
+- `health_score`: 0-100 health score
+
+**Persistence**: Saved to `repo_stats` table via `saveRepoStats()` (line 191-231)
+
+### Health Scoring
+
+**Function**: `calculateRepoHealth(repo_path, last_commit, total_commits)`
+
+**Location**: `src/artifactminer/RepositoryIntelligence/repo_intelligence_main.py:47-132`
+
+**Algorithm**: Scores repositories from 0.0 to 100.0 based on five categories:
+
+#### 1. Documentation Presence (30 points max)
+
+| File/Directory | Points |
+|----------------|--------|
+| README.md | 12 |
+| README | 8 |
+| LICENSE | 8 |
+| CONTRIBUTING.md | 5 |
+| CHANGELOG.md | 3 |
+| docs/ directory | 2 |
+
+**Logic** (lines 63-75):
+```python
+doc_files = {'README.md': 12, 'README': 8, 'LICENSE': 8, ...}
+for doc, points in doc_files.items():
+    if (repo_path / doc).exists():
+        score += points
+```
+
+#### 2. Commit Recency (25 points max)
+
+**Logic** (lines 77-90):
+
+| Days Since Last Commit | Points |
+|------------------------|--------|
+| ≤ 7 days | 25 |
+| ≤ 30 days | 20 |
+| ≤ 90 days | 15 |
+| ≤ 180 days | 10 |
+| ≤ 365 days | 5 |
+| > 365 days | 0 |
+
+#### 3. Commit Activity (20 points max)
+
+**Logic** (lines 92-101):
+
+| Total Commits | Points |
+|---------------|--------|
+| ≥ 100 | 20 |
+| ≥ 50 | 15 |
+| ≥ 20 | 10 |
+| ≥ 10 | 5 |
+| < 10 | 0 |
+
+#### 4. Test Presence (15 points max)
+
+**Logic** (lines 103-120):
+
+Checks for:
+- Test directories: `tests/`, `test/`, `__tests__/`, `spec/`, `specs/`
+- Test configs: `pytest.ini`, `jest.config.js`, `karma.conf.js`
+- Test files: `test_*.py`, `*_test.py`, `*.test.js`, `*.spec.js`
+
+Any detection awards full 15 points.
+
+#### 5. Configuration Files (10 points max)
+
+**Logic** (lines 122-130):
+
+Checks for:
+- `.gitignore`
+- `.editorconfig`
+- `.prettierrc`
+- `.eslintrc`
+- `pyproject.toml`
+
+Each file present: +2 points (capped at 10)
+
+**Example Calculation**:
+```python
+README.md: 12 points
+LICENSE: 8 points
+Last commit 5 days ago: 25 points
+75 commits total: 15 points
+Has tests/ directory: 15 points
+.gitignore + .eslintrc: 4 points
+─────────────────────
+Total: 79.0 / 100.0
+```
+
+### Framework Detection
+
+**File**: `framework_detector.py`
+
+**Function**: `detect_frameworks(repo_path)`
+
+**Location**: `src/artifactminer/RepositoryIntelligence/framework_detector.py:134-161`
+
+**Process**:
+
+1. Calls ecosystem-specific detectors:
+   - `detect_python_frameworks()` (lines 27-51)
+   - `detect_javascript_frameworks()` (lines 54-80)
+   - `detect_java_frameworks()` (lines 83-106)
+   - `detect_go_frameworks()` (lines 109-131)
+
+2. Deduplicates results while preserving order
+
+3. Returns list of framework names
+
+#### Python Framework Detection
+
+**Location**: Lines 27-51
+
+**Dependency Files Scanned**:
+- `requirements.txt`
+- `pyproject.toml`
+- `Pipfile`
+- `setup.py`
+
+**Detection Method**:
+```python
+needles = FRAMEWORK_DEPENDENCIES_BY_ECOSYSTEM.get("python", {})
+# Example needles: {"fastapi": "FastAPI", "django": "Django", "flask": "Flask"}
+
+for filename in ("requirements.txt", "pyproject.toml", ...):
+    content = (repo_path / filename).read_text().lower()
+    for dep, skill in needles.items():
+        if dep in content:
+            frameworks.append(skill)
+```
+
+**Example**: If `requirements.txt` contains `fastapi==0.104.1`, detects "FastAPI" framework.
+
+#### JavaScript/TypeScript Framework Detection
+
+**Location**: Lines 54-80
+
+**Dependency File**: `package.json`
+
+**Detection Method**:
+```python
+package_data = json.loads(package_json.read_text())
+dependencies = package_data.get("dependencies", {}) or {}
+dev_dependencies = package_data.get("devDependencies", {}) or {}
+all_deps = {**dependencies, **dev_dependencies}
+
+for dep_key in all_deps.keys():
+    skill = needles.get(dep_key.lower())
+    if skill:
+        frameworks.append(skill)
+```
+
+**Example**: If `package.json` has `"react": "^18.2.0"`, detects "React" framework.
+
+#### Java Framework Detection
+
+**Location**: Lines 83-106
+
+**Dependency Files**:
+- `pom.xml` (Maven)
+- `build.gradle` (Gradle)
+- `build.gradle.kts` (Kotlin Gradle)
+
+**Example Needle**: `"spring"` in `pom.xml` → "Spring" framework
+
+#### Go Framework Detection
+
+**Location**: Lines 109-131
+
+**Dependency File**: `go.mod`
+
+**Example**: `github.com/gin-gonic/gin` → "Gin" framework
+
+### 2. User-Level Intelligence
+
+**File**: `repo_intelligence_user.py`
+
+#### `getUserRepoStats(repo_path, user_email)`
+
+Extracts user-specific contribution statistics.
+
+**Location**: `src/artifactminer/RepositoryIntelligence/repo_intelligence_user.py:32-73`
+
+**Process**:
+
+1. **Repository Validation**
+   - Validates repo path using `isGitRepo()`
+   - Validates email format using `email_validator` (lines 35-37)
+
+2. **User Commit Filtering**
+   - Filters commits by `author.email` matching user email (line 45)
+   - Example:
+     ```python
+     commits = list(repo.iter_commits(author="alice@example.com"))
+     ```
+
+3. **Contribution Percentage**
+   - Calculates: `(user_commits / total_commits) * 100` (line 52)
+   - Example: 30 user commits out of 100 total = 30.0%
+
+4. **Commit Frequency**
+   - Time window: First commit to last commit by user (line 54)
+   - Converts to weeks: `delta.total_seconds() / 604800` (line 55)
+   - Calculates: `total_commits / weeks` (line 59)
+   - Example: 30 commits over 10 weeks = 3.0 commits/week
+
+5. **Activity Classification**
+   - Calls `classify_commit_activities()` (line 62)
+   - See [Activity Classification](#activity-classification) section below
+
+**Returns**: `UserRepoStats` dataclass with:
+- `project_name`: Repository name
+- `project_path`: Filesystem path
+- `first_commit`: User's first commit datetime
+- `last_commit`: User's last commit datetime
+- `total_commits`: User's commit count
+- `userStatspercentages`: User's contribution %
+- `commitFrequency`: Commits per week
+- `commitActivities`: Activity breakdown dict
+- `user_role`: User's role (optional, can be set later)
+
+**Persistence**: Saved to `user_repo_stats` table via `saveUserRepoStats()` (lines 160-208)
+
+### Activity Classification
+
+**File**: `activity_classifier.py`
+
+**Function**: `classify_commit_activities(additions)`
+
+**Location**: `src/artifactminer/RepositoryIntelligence/activity_classifier.py:6-242`
+
+**Purpose**: Classifies commit content into five activity types:
+- **code**: Actual code additions
+- **test**: Test-related changes
+- **docs**: Documentation (comments, docstrings, markdown)
+- **config**: Configuration files (YAML, TOML, env vars)
+- **design**: Design artifacts (Figma links, wireframes)
+
+**Input**: List of addition text blocks (one per commit)
+
+**Algorithm**:
+
+#### 1. Per-Commit Analysis (lines 19-213)
+
+For each commit's additions:
+
+**a. Skip Blank Lines**
+```python
+non_blank_lines = [ln for ln in lines if ln.strip()]
+lines_added = len(non_blank_lines)
+```
+
+**b. Python Docstring Detection** (lines 44-67)
+```python
+if in_docstring_block:
+    doc_like_lines += 1
+    if stripped.endswith('"""') or stripped.endswith("'''"):
+        in_docstring_block = False
+    continue
+
+if stripped.startswith('"""') or stripped.startswith("'''"):
+    doc_like_lines += 1
+    if not ends_with_triple_quote:
+        in_docstring_block = True
+```
+
+**c. Comment Detection** (lines 78-99)
+
+Splits lines at comment markers (`#`, `//`, `/*`):
+```python
+code_part = line_before_comment
+comment_part = line_after_comment
+
+if comment_only:
+    doc_like_lines += 1
+
+if inline_comment:
+    code_lines += 1
+    doc_like_lines += 1  # Count comment separately
+```
+
+**d. Test Detection** (lines 110-124)
+
+Looks for test indicators in code:
+```python
+if ("assert " in code_lower or
+    "pytest" in code_lower or
+    "unittest" in code_lower or
+    "expect(" in code_lower or
+    code_lower.startswith("def test_")):
+    has_test = True
+```
+
+**e. Config Detection** (lines 140-166)
+
+Detects configuration patterns:
+- Environment variables: `FOO=bar` with uppercase keys
+- YAML-style: `key: value`
+- Config keywords: `toml`, `yaml`, `json`, `settings`
+
+**f. Design Detection** (lines 170-185)
+
+Looks for design references in comments:
+```python
+if any(kw in comment_lower for kw in [
+    "figma", "wireframe", "mockup", "prototype",
+    "ui spec", "ux spec", "screen flow", "user flow"
+]):
+    has_design = True
+```
+
+#### 2. Accumulation (lines 195-213)
+
+```python
+if has_test:
+    activity_summary["test"]["commits"] += 1
+    activity_summary["test"]["lines_added"] += lines_added
+
+if has_docs:
+    activity_summary["docs"]["commits"] += 1
+    activity_summary["docs"]["lines_added"] += doc_like_lines
+
+if has_config:
+    activity_summary["config"]["commits"] += 1
+    activity_summary["config"]["lines_added"] += config_like_lines
+
+if has_design:
+    activity_summary["design"]["commits"] += 1
+    activity_summary["design"]["lines_added"] += lines_added
+
+if code_lines > 0:
+    activity_summary["code"]["commits"] += 1
+    activity_summary["code"]["lines_added"] += code_lines
+```
+
+#### 3. Percentage Calculation (lines 216-240)
+
+**Goal**: Distribute 100% across categories based on line counts
+
+```python
+total_lines = sum(v["lines_added"] for v in activity_summary.values())
+
+# Calculate raw percentages
+raw = {k: (v["lines_added"] * 100.0) / total_lines for k, v in activity_summary.items()}
+
+# Floor to integers
+floored = {k: int(raw[k]) for k in raw}
+
+# Distribute remainder to categories with largest fractional parts
+remainder = 100 - sum(floored.values())
+frac = {k: raw[k] - floored[k] for k in raw}
+keys_ordered = sorted(frac.keys(), key=lambda k: frac[k], reverse=True)
+
+for i in range(remainder):
+    key = keys_ordered[i % len(keys_ordered)]
+    floored[key] += 1
+```
+
+**Example Output**:
+```json
+{
+  "code": {"commits": 10, "lines_added": 500, "percentage": 60},
+  "test": {"commits": 3, "lines_added": 150, "percentage": 18},
+  "docs": {"commits": 5, "lines_added": 100, "percentage": 12},
+  "config": {"commits": 2, "lines_added": 50, "percentage": 6},
+  "design": {"commits": 1, "lines_added": 33, "percentage": 4}
+}
+```
+
+### User Additions Collection
+
+**Function**: `collect_user_additions(repo_path, user_email, ...)`
+
+**Location**: `src/artifactminer/RepositoryIntelligence/repo_intelligence_user.py:93-147`
+
+**Purpose**: Collect added lines from user's commits for AI summary generation.
+
+**Process**:
+
+1. **Validate Inputs**
+   - Check repo path is valid Git repository
+   - Validate and normalize email address (lines 107-114)
+
+2. **Filter Commits**
+   - Get commits in date range (`since` to `until`)
+   - Filter by author email
+   - Skip merge commits if `skip_merges=True` (lines 118-123)
+   - Reverse to chronological order (oldest → newest) (line 126)
+
+3. **Extract Additions per Commit** (lines 129-146)
+   ```python
+   for commit in commits:
+       patch = repo.git.show(commit.hexsha, "--patch", "--unified=3")
+       
+       # Cap patch size for safety
+       if len(patch) > max_patch_bytes:
+           patch = patch[:max_patch_bytes] + "\n... [truncated]"
+       
+       added_only = extract_added_lines(patch).strip()
+       if added_only:
+           additions_per_commit.append(added_only)
+   ```
+
+4. **Extract Added Lines** (lines 76-90)
+   ```python
+   def extract_added_lines(patch_text: str) -> str:
+       added: list[str] = []
+       for line in patch_text.splitlines():
+           if line.startswith("Binary files"):
+               continue
+           # Skip diff headers
+           if line.startswith(("diff --git", "index ", "--- ", "+++ ", "@@")):
+               continue
+           # Keep additions (but not +++ header)
+           if line.startswith("+") and not line.startswith("+++"):
+               added.append(line[1:])  # Remove leading +
+       return "\n".join(added)
+   ```
+
+**Returns**: List of strings, one per commit, containing only added lines
+
+**Used By**: AI summary generation in `generate_summaries_for_ranked()` (lines 210-330)
+
+## Collaboration Detection
+
+**Logic**: Repository is collaborative if:
+
+1. **Has Remote Repositories**
+   ```python
+   is_collaborative = len(repo.remotes) > 0
+   ```
+
+2. **OR Has Multiple Authors**
+   ```python
+   authors = {commit.author.email for commit in repo.iter_commits()}
+   is_collaborative = is_collaborative or len(authors) > 1
+   ```
+
+**Code**: `src/artifactminer/RepositoryIntelligence/repo_intelligence_main.py:164-167`
+
+**Impact**:
+- Collaborative repos: User-scoped skill extraction
+- Solo repos: Full repository skill extraction
+
+## API Integration
+
+Repository intelligence is invoked by the analyze router:
+
+**Router**: `src/artifactminer/api/analyze.py`
+
+**Endpoints**:
+- `POST /analyze/{zip_id}` - Analyze all repos in a ZIP
+- `POST /repos/analyze` - Analyze specific repository path
+
+**Workflow**:
+1. Discover Git repositories in extraction path
+2. For each repository:
+   - Call `getRepoStats(repo_path)`
+   - Call `saveRepoStats(stats, db)`
+   - Get user email from question answers
+   - Call `getUserRepoStats(repo_path, user_email)`
+   - Call `saveUserRepoStats(user_stats, db)`
+3. Trigger skill extraction and evidence generation
+
+## Performance Considerations
+
+### Large Repositories
+
+- **Commit iteration**: Can be slow for repos with 10,000+ commits
+- **Mitigation**: Use `max_count` parameter in `iter_commits()`
+
+### File Tree Traversal
+
+- **Language detection**: Traverses entire HEAD commit tree
+- **Optimization**: Only counts extensions, doesn't read file contents
+
+### User Additions Collection
+
+- **Patch generation**: Memory-intensive for large commits
+- **Safety**: `max_patch_bytes` caps individual patches (default: 200KB)
+- **Limiting**: `max_commits` parameter (default: 500)
+
+## Related Documentation
+
+- [System Architecture](/architecture/overview)
+- [Data Flow Architecture](/architecture/data-flow)
+- [Database Architecture](/architecture/database)
+- [Skill Detection](/architecture/skill-detection)
+- [Evidence Extraction](/architecture/evidence-extraction)

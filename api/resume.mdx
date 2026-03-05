@@ -1,0 +1,347 @@
+---
+title: 'Resume'
+description: 'Generate and manage resume items from project analysis'
+---
+
+## Overview
+
+The resume API generates resume items by analyzing your project contributions and extracting demonstrable insights. Resume items are stored as **ProjectEvidence** records linked to projects.
+
+## Get Resume Items
+
+Retrieve all resume items, sorted by project recency.
+
+```bash GET /resume
+curl http://127.0.0.1:8000/resume?project_id=1
+```
+
+**Query Parameters:**
+
+<ParamField query="project_id" type="integer" optional>
+  Filter resume items by project (repo_stat_id). Omit to get items from all projects
+</ParamField>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "title": "Built REST API with FastAPI",
+    "content": "Developed a scalable REST API using FastAPI with SQLAlchemy ORM, serving 10k+ requests/day",
+    "category": "Backend Development",
+    "project_name": "my-app",
+    "role": "Lead Developer",
+    "created_at": "2024-03-05T10:00:00"
+  }
+]
+```
+
+<ResponseField name="id" type="integer">
+  Resume item ID
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Resume item title/headline
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  Detailed description of the accomplishment
+</ResponseField>
+
+<ResponseField name="category" type="string" optional>
+  Category (e.g., "Backend Development", "DevOps")
+</ResponseField>
+
+<ResponseField name="project_name" type="string" optional>
+  Associated project name
+</ResponseField>
+
+<ResponseField name="role" type="string" optional>
+  Your role in the project
+</ResponseField>
+
+<ResponseField name="created_at" type="datetime">
+  When the resume item was created
+</ResponseField>
+
+<Note>
+  Resume items are sorted by project's last commit (newest first) to prioritize recent work.
+</Note>
+
+## Get Single Resume Item
+
+Retrieve a specific resume item by ID.
+
+```bash GET /resume/{resume_id}
+curl http://127.0.0.1:8000/resume/1
+```
+
+**Path Parameters:**
+
+<ParamField path="resume_id" type="integer" required>
+  Resume item ID to retrieve
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "title": "Built REST API with FastAPI",
+  "content": "Developed a scalable REST API...",
+  "category": "Backend Development",
+  "project_name": "my-app",
+  "created_at": "2024-03-05T10:00:00"
+}
+```
+
+**Errors:**
+
+- `404` - Resume item not found or associated project is deleted
+
+## Generate Resume Items
+
+Generate resume items for selected projects using AI analysis.
+
+```bash POST /resume/generate
+curl -X POST http://127.0.0.1:8000/resume/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_ids": [1, 2, 3],
+    "regenerate": false
+  }'
+```
+
+**Request Body:**
+
+<ParamField body="project_ids" type="array" required>
+  List of project IDs (repo_stat IDs) to generate resume items for. Must contain at least one ID
+</ParamField>
+
+<ParamField body="regenerate" type="boolean" optional default="false">
+  If `true`, delete existing ProjectEvidence and legacy ResumeItem rows before regenerating
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "items_generated": 24,
+  "resume_items": [],
+  "consent_level": "local",
+  "errors": [],
+  "warnings": [
+    "Could not collect additions for project-x: No commits found"
+  ]
+}
+```
+
+<ResponseField name="success" type="boolean">
+  `true` if generation completed without critical errors
+</ResponseField>
+
+<ResponseField name="items_generated" type="integer">
+  Total number of evidence items created (not resume items)
+</ResponseField>
+
+<ResponseField name="resume_items" type="array">
+  Always empty list. Insights are stored as ProjectEvidence, not ResumeItem rows
+</ResponseField>
+
+<ResponseField name="consent_level" type="string">
+  Consent level used for generation: `full`, `no_llm`, or `none`
+</ResponseField>
+
+<ResponseField name="errors" type="array">
+  List of critical errors encountered during generation
+</ResponseField>
+
+<ResponseField name="warnings" type="array">
+  List of non-critical warnings (e.g., git metadata collection failures)
+</ResponseField>
+
+### Success Semantics
+
+<Warning>
+  **Important**: This endpoint persists insights as `ProjectEvidence` rows, **not** `ResumeItem` rows. The `success` field indicates whether generation completed without critical errors, not whether the `resume_items` list is non-empty.
+</Warning>
+
+- `success=true`: All projects were processed without errors
+- `success=false`: One or more projects encountered critical errors
+- `items_generated`: Count of evidence items created
+- `resume_items`: Always empty (insights stored as ProjectEvidence)
+
+### How to Get Project IDs
+
+Project IDs are the database primary keys for `RepoStat` entries:
+
+1. **List all projects**: `GET /projects` returns all projects with IDs
+2. **Get specific project**: `GET /projects/{project_id}` returns details
+3. **After analysis**: `POST /analyze/{zip_id}` response includes project IDs
+
+**Example workflow:**
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Step 1: Get all projects
+projects = requests.get(f'{BASE_URL}/projects').json()
+project_ids = [p['id'] for p in projects[:3]]  # Top 3 projects
+
+# Step 2: Generate resume items
+response = requests.post(
+    f'{BASE_URL}/resume/generate',
+    json={'project_ids': project_ids, 'regenerate': False}
+)
+
+result = response.json()
+print(f"Generated {result['items_generated']} evidence items")
+if result['errors']:
+    print(f"Errors: {result['errors']}")
+```
+
+**Errors:**
+
+- `400` - User email not configured
+- `404` - One or more project IDs not found or deleted
+- `500` - Database commit failed
+
+## Edit Resume Item
+
+Update a resume item's title, content, and/or category.
+
+```bash POST /resume/{resume_id}/edit
+curl -X POST http://127.0.0.1:8000/resume/1/edit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Built Scalable REST API",
+    "content": "Developed a high-performance REST API...",
+    "category": "Backend Engineering"
+  }'
+```
+
+**Path Parameters:**
+
+<ParamField path="resume_id" type="integer" required>
+  Resume item ID to edit
+</ParamField>
+
+**Request Body:**
+
+<ParamField body="title" type="string" optional>
+  New title for the resume item (min 1 character)
+</ParamField>
+
+<ParamField body="content" type="string" optional>
+  New content for the resume item (min 1 character)
+</ParamField>
+
+<ParamField body="category" type="string" optional>
+  New category for the resume item (min 1 character)
+</ParamField>
+
+<Note>
+  At least one field (title, content, or category) must be provided. Partial updates are supported.
+</Note>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "title": "Built Scalable REST API",
+  "content": "Developed a high-performance REST API...",
+  "category": "Backend Engineering",
+  "project_name": "my-app",
+  "role": "Lead Developer",
+  "created_at": "2024-03-05T10:00:00"
+}
+```
+
+**Errors:**
+
+- `404` - Resume item not found or associated project is deleted
+- `422` - No fields provided or validation error
+- `500` - Database update failed
+
+## Generation Process
+
+When you call `POST /resume/generate`, the following happens:
+
+1. **Validation**: Verify all project IDs exist and are not soft-deleted
+2. **User Context**: Retrieve user email and consent level
+3. **For Each Project**:
+   - Optionally delete existing evidence/resume items (if `regenerate=true`)
+   - Collect user contributions from git history
+   - Run DeepRepoAnalyzer to extract skills and insights
+   - Persist insights as ProjectEvidence (not ResumeItem)
+4. **Response**: Return generation results with evidence count
+
+### Regeneration
+
+When `regenerate=true`:
+
+- Deletes existing `ProjectEvidence` rows for the project
+- Deletes legacy `ResumeItem` rows for the project
+- Re-analyzes the project from scratch
+- Useful for updating insights after code changes
+
+<Warning>
+  Regeneration permanently deletes existing evidence and resume items. This cannot be undone.
+</Warning>
+
+## Example: Complete Resume Workflow
+
+```python
+import requests
+
+BASE_URL = 'http://127.0.0.1:8000'
+
+# Step 1: Upload and analyze projects
+with open('projects.zip', 'rb') as f:
+    upload = requests.post(f'{BASE_URL}/zip/upload', files={'file': f}).json()
+    zip_id = upload['zip_id']
+
+analysis = requests.post(f'{BASE_URL}/analyze/{zip_id}').json()
+project_ids = [r['project_path'] for r in analysis['repos_analyzed'] if not r.get('error')]
+
+# Step 2: Get actual project IDs from database
+projects = requests.get(f'{BASE_URL}/projects').json()
+project_ids = [p['id'] for p in projects[:5]]  # Top 5 projects
+
+# Step 3: Generate resume items
+generation = requests.post(
+    f'{BASE_URL}/resume/generate',
+    json={'project_ids': project_ids, 'regenerate': False}
+).json()
+
+print(f"Success: {generation['success']}")
+print(f"Evidence items: {generation['items_generated']}")
+
+# Step 4: Retrieve and review resume items
+resume_items = requests.get(f'{BASE_URL}/resume').json()
+
+for item in resume_items[:3]:
+    print(f"\n{item['title']}")
+    print(f"  Project: {item['project_name']}")
+    print(f"  {item['content'][:100]}...")
+
+# Step 5: Edit a resume item
+if resume_items:
+    item_id = resume_items[0]['id']
+    updated = requests.post(
+        f'{BASE_URL}/resume/{item_id}/edit',
+        json={'title': 'Enhanced API Performance'}
+    ).json()
+    print(f"\nUpdated: {updated['title']}")
+```
+
+## Related Endpoints
+
+- [GET /projects/{id}](/api/projects#get-project-details) - View evidence for a project
+- [POST /analyze/{zip_id}](/api/analysis#analyze-zip) - Analyze repositories first
+- [POST /portfolio/generate](/api/portfolio#generate-portfolio) - Include resume items in portfolio
