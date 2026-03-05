@@ -1,0 +1,139 @@
+{
+  "projectType": "saas",
+  "projectName": "Artifact Miner",
+  "projectDescription": "A portfolio analysis platform that extracts project intelligence from Git repositories to generate resume-ready outputs for CS students and career advisors.",
+  "theme": "maple",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/portfolio-analysis",
+              "features/skill-extraction",
+              "features/resume-generation",
+              "features/evidence-tracking"
+            ]
+          },
+          {
+            "group": "User Interfaces",
+            "pages": [
+              "interfaces/cli",
+              "interfaces/tui",
+              "interfaces/react-client"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/uploading-projects",
+              "guides/consent-privacy",
+              "guides/analyzing-repositories",
+              "guides/generating-output"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/consent",
+              "api/zip-upload",
+              "api/projects",
+              "api/analysis",
+              "api/skills",
+              "api/resume",
+              "api/portfolio"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
+          {
+            "group": "System Design",
+            "pages": [
+              "architecture/overview",
+              "architecture/data-flow",
+              "architecture/database"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "architecture/repository-intelligence",
+              "architecture/skill-detection",
+              "architecture/evidence-extraction"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-ZIP portfolio analysis with Git repository discovery",
+    "Automated skill extraction from code, dependencies, and commit history",
+    "Repository intelligence including language detection, framework analysis, and health scoring",
+    "Evidence-based project insights with ranking and timeline visualization",
+    "Resume and portfolio generation with customizable representation preferences",
+    "Multiple client interfaces: CLI, Textual TUI, and experimental React client",
+    "Privacy-conscious consent management with optional LLM integration (OpenAI/Ollama)",
+    "Project timeline and skills chronology tracking"
+  ],
+  "publicApiSurface": [
+    "GET /health",
+    "GET /consent, PUT /consent",
+    "GET /questions, POST /answers",
+    "POST /zip/upload",
+    "GET /zip/{zip_id}/directories",
+    "POST /analyze/{zip_id}",
+    "POST /repos/analyze",
+    "GET /projects",
+    "GET /projects/{project_id}",
+    "POST /projects/{project_id}/thumbnail",
+    "PUT /projects/{project_id}/role",
+    "POST /projects/{project_id}/evidence",
+    "GET /projects/{project_id}/evidence",
+    "DELETE /projects/{project_id}/evidence/{evidence_id}",
+    "GET /projects/timeline",
+    "GET /projects/ranking",
+    "DELETE /projects/{project_id}",
+    "GET /skills",
+    "GET /skills/chronology",
+    "GET /resume",
+    "POST /resume/generate",
+    "POST /resume/{resume_id}/edit",
+    "GET /summaries",
+    "GET /AI_summaries",
+    "POST /portfolio/generate",
+    "GET /views/{portfolio_id}/prefs",
+    "PUT /views/{portfolio_id}/prefs",
+    "artifactminer CLI (interactive and non-interactive modes)",
+    "artifactminer-tui (Textual-based TUI)",
+    "api (FastAPI backend server)"
+  ]
+}
